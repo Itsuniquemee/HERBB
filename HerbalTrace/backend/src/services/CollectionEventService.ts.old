@@ -1,0 +1,291 @@
+import { Gateway, Contract } from 'fabric-network';
+import { getGateway } from '../fabric/connection';
+import axios from 'axios';
+import FormData from 'form-data';
+import fs from 'fs';
+
+interface GPS {
+  latitude: number;
+  longitude: number;
+  altitude?: number;
+  accuracy?: number;
+}
+
+interface Weather {
+  temperature: number;
+  humidity: number;
+  conditions: string;
+  windSpeed?: number;
+}
+
+interface CollectionEventInput {
+  farmerId: string;
+  farmerName: string;
+  species: string;
+  commonName?: string;
+  scientificName?: string;
+  quantity: number;
+  unit: string;
+  gps: GPS;
+  harvestDate: string;
+  harvestMethod: 'manual' | 'mechanical';
+  partCollected: string;
+  images?: string[]; // IPFS hashes or base64 strings
+  approvedZone?: boolean;
+  zoneName?: string;
+  conservationStatus?: string;
+}
+
+interface WeatherAPIResponse {
+  temperature: number;
+  humidity: number;
+  description: string;
+  windSpeed: number;
+}
+
+export class CollectionEventService {
+  private gateway: Gateway | null = null;
+  private contract: Contract | null = null;
+  private ipfsEndpoint: string = process.env.IPFS_ENDPOINT || 'http://localhost:5001/api/v0'; // IPFS API
+  private weatherApiKey: string = process.env.WEATHER_API_KEY || ''; // OpenWeatherMap API key
+
+  /**
+   * Initialize the service with Fabric network connection
+   */
+  async initialize(organizationId: string = 'FarmersCoop'): Promise<void> {
+    try {
+      console.log(`[CollectionEventService] Initializing for ${organizationId}...`);
+      
+      this.gateway = await getGateway(organizationId);
+      const network = await this.gateway.getNetwork('herbaltrace-channel');
+      this.contract = network.getContract('herbaltrace');
+      
+      console.log('[CollectionEventService] Successfully connected to herbaltrace-channel');
+    } catch (error: any) {
+      console.error('[CollectionEventService] Initialization failed:', error.message);
+      throw new Error(`Failed to initialize CollectionEventService: ${error.message}`);
+    }
+  }
+
+  /**
+   * Auto-fetch weather data from GPS coordinates
+   */
+  private async getWeatherData(latitude: number, longitude: number): Promise<Weather> {
+    if (!this.weatherApiKey) {
+      console.warn('[CollectionEventService] No weather API key configured, using default values');
+      return {
+        temperature: 25,
+        humidity: 60,
+        conditions: 'Unknown',
+        windSpeed: 5
+      };
+    }
+
+    try {
+      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${this.weatherApiKey}&units=metric`;
+      const response = await axios.get<WeatherAPIResponse>(url, { timeout: 5000 });
+      
+      return {
+        temperature: response.data.temperature,
+        humidity: response.data.humidity,
+        conditions: response.data.description,
+        windSpeed: response.data.windSpeed
+      };
+    } catch (error: any) {
+      console.error('[CollectionEventService] Weather API failed:', error.message);
+      return {
+        temperature: 0,
+        humidity: 0,
+        conditions: 'API Error',
+        windSpeed: 0
+      };
+    }
+  }
+
+  /**
+   * Upload image to IPFS and return hash
+   */
+  private async uploadImageToIPFS(imageData: string): Promise<string> {
+    try {
+      // If imageData is base64, decode it first
+      let buffer: Buffer;
+      if (imageData.startsWith('data:image')) {
+        const base64Data = imageData.split(',')[1];
+        buffer = Buffer.from(base64Data, 'base64');
+      } else {
+        // Assume it's a file path
+        buffer = fs.readFileSync(imageData);
+      }
+
+      const formData = new FormData();
+      formData.append('file', buffer, 'image.jpg');
+
+      const response = await axios.post(`${this.ipfsEndpoint}/add`, formData, {
+        headers: formData.getHeaders(),
+        timeout: 30000
+      });
+
+      const ipfsHash = response.data.Hash;
+      console.log(`[CollectionEventService] Image uploaded to IPFS: ${ipfsHash}`);
+      return ipfsHash;
+    } catch (error: any) {
+      console.error('[CollectionEventService] IPFS upload failed:', error.message);
+      return ''; // Return empty string on failure
+    }
+  }
+
+  /**
+   * Create a new collection event (for farmer mobile app)
+   * Auto-captures weather and uploads images to IPFS
+   */
+  async createCollectionEvent(input: CollectionEventInput): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[CollectionEventService] Creating collection event for farmer ${input.farmerId}...`);
+
+      // Auto-fetch weather data
+      const weather = await this.getWeatherData(input.gps.latitude, input.gps.longitude);
+      const weatherConditions = `Temperature: ${weather.temperature}°C, Humidity: ${weather.humidity}%, Conditions: ${weather.conditions}`;
+
+      // Upload images to IPFS if provided
+      let ipfsHashes: string[] = [];
+      if (input.images && input.images.length > 0) {
+        console.log(`[CollectionEventService] Uploading ${input.images.length} images to IPFS...`);
+        for (const image of input.images) {
+          const hash = await this.uploadImageToIPFS(image);
+          if (hash) ipfsHashes.push(hash);
+        }
+      }
+
+      // Prepare collection event JSON
+      const collectionEvent = {
+        farmerId: input.farmerId,
+        farmerName: input.farmerName,
+        species: input.species,
+        commonName: input.commonName || input.species,
+        scientificName: input.scientificName || 'Unknown',
+        quantity: input.quantity,
+        unit: input.unit,
+        harvestDate: input.harvestDate,
+        timestamp: new Date().toISOString(),
+        latitude: input.gps.latitude,
+        longitude: input.gps.longitude,
+        altitude: input.gps.altitude || 0,
+        accuracy: input.gps.accuracy || 0,
+        harvestMethod: input.harvestMethod,
+        partCollected: input.partCollected,
+        weatherConditions: weatherConditions,
+        images: ipfsHashes,
+        approvedZone: input.approvedZone !== undefined ? input.approvedZone : true,
+        zoneName: input.zoneName || 'Default Zone',
+        conservationStatus: input.conservationStatus || 'LC', // Least Concern
+        status: 'pending'
+      };
+
+      // Invoke CreateCollectionEvent chaincode function
+      console.log('[CollectionEventService] Submitting transaction to blockchain...');
+      const result = await this.contract.submitTransaction(
+        'CreateCollectionEvent',
+        JSON.stringify(collectionEvent)
+      );
+
+      const response = JSON.parse(result.toString());
+      console.log(`[CollectionEventService] Collection event created: ${response.collectionEventId}`);
+
+      return response;
+    } catch (error: any) {
+      console.error('[CollectionEventService] CreateCollectionEvent failed:', error.message);
+      throw new Error(`Failed to create collection event: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get collection event by ID
+   */
+  async getCollectionEvent(collectionEventId: string): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[CollectionEventService] Fetching collection event ${collectionEventId}...`);
+      
+      const result = await this.contract.evaluateTransaction('GetCollectionEvent', collectionEventId);
+      const collectionEvent = JSON.parse(result.toString());
+      
+      console.log(`[CollectionEventService] Collection event retrieved: ${collectionEventId}`);
+      return collectionEvent;
+    } catch (error: any) {
+      console.error('[CollectionEventService] GetCollectionEvent failed:', error.message);
+      throw new Error(`Failed to get collection event: ${error.message}`);
+    }
+  }
+
+  /**
+   * Query collection events by farmer ID
+   */
+  async getCollectionEventsByFarmer(farmerId: string): Promise<any[]> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[CollectionEventService] Querying collection events for farmer ${farmerId}...`);
+      
+      // This requires a CouchDB index on farmerId field
+      const result = await this.contract.evaluateTransaction('QueryCollectionEventsByFarmer', farmerId);
+      const events = JSON.parse(result.toString());
+      
+      console.log(`[CollectionEventService] Found ${events.length} collection events for farmer ${farmerId}`);
+      return events;
+    } catch (error: any) {
+      console.error('[CollectionEventService] QueryCollectionEventsByFarmer failed:', error.message);
+      throw new Error(`Failed to query collection events by farmer: ${error.message}`);
+    }
+  }
+
+  /**
+   * Approve or reject collection event (for admin/regulator)
+   */
+  async updateCollectionEventStatus(collectionEventId: string, status: 'approved' | 'rejected', reviewedBy: string): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[CollectionEventService] Updating collection event ${collectionEventId} status to ${status}...`);
+      
+      const result = await this.contract.submitTransaction(
+        'UpdateCollectionEventStatus',
+        collectionEventId,
+        status,
+        reviewedBy
+      );
+      
+      const response = JSON.parse(result.toString());
+      console.log(`[CollectionEventService] Collection event ${collectionEventId} status updated to ${status}`);
+      
+      return response;
+    } catch (error: any) {
+      console.error('[CollectionEventService] UpdateCollectionEventStatus failed:', error.message);
+      throw new Error(`Failed to update collection event status: ${error.message}`);
+    }
+  }
+
+  /**
+   * Disconnect from Fabric network
+   */
+  async disconnect(): Promise<void> {
+    if (this.gateway) {
+      console.log('[CollectionEventService] Disconnecting from Fabric network...');
+      this.gateway.disconnect();
+      this.gateway = null;
+      this.contract = null;
+    }
+  }
+}
+
+export default CollectionEventService;

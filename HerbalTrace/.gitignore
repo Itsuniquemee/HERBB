@@ -1,0 +1,84 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+web-portal/node_modules/
+**/vendor/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database files
+*.db
+*.sqlite
+backend/data/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+backend/logs/
+setup.log
+test-results.log
+channel-creation.log
+
+# Wallet files (contains private keys)
+backend/wallet/
+network/wallet/
+wallet/
+
+# Crypto config (contains certificates and keys)
+organizations/
+
+# Docker volumes and generated crypto material
+network/organizations/fabric-ca/
+network/organizations/**/msp/
+network/organizations/**/tls/
+network/channel-artifacts/*.block
+network/channel-artifacts/*.tx
+
+# Hyperledger Fabric artifacts
+*.tar.gz
+!chaincode/**/*.tar.gz
+
+# Large binaries
+network/bin/
+*.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Git submodules
+web-portal-cloned/
+
+# Temporary files
+*.tmp
+temp/
+tmp/

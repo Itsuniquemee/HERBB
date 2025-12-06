@@ -1,0 +1,228 @@
+# HerbalTrace Network Configuration
+# Defines organizations, orderer, and channel profiles
+
+Organizations:
+  - &OrdererOrg
+      Name: OrdererOrg
+      ID: OrdererMSP
+      MSPDir: ../organizations/ordererOrganizations/herbaltrace.com/msp
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('OrdererMSP.member')"
+        Writers:
+          Type: Signature
+          Rule: "OR('OrdererMSP.member')"
+        Admins:
+          Type: Signature
+          Rule: "OR('OrdererMSP.admin')"
+      OrdererEndpoints:
+        - orderer.herbaltrace.com:7050
+        - orderer2.herbaltrace.com:8050
+        - orderer3.herbaltrace.com:9050
+
+  - &FarmersCoop
+      Name: FarmersCoopMSP
+      ID: FarmersCoopMSP
+      MSPDir: ../organizations/peerOrganizations/farmers.herbaltrace.com/msp
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('FarmersCoopMSP.admin', 'FarmersCoopMSP.peer', 'FarmersCoopMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('FarmersCoopMSP.admin', 'FarmersCoopMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('FarmersCoopMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('FarmersCoopMSP.peer')"
+      AnchorPeers:
+        - Host: peer0.farmers.herbaltrace.com
+          Port: 7051
+
+  - &TestingLabs
+      Name: TestingLabsMSP
+      ID: TestingLabsMSP
+      MSPDir: ../organizations/peerOrganizations/labs.herbaltrace.com/msp
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('TestingLabsMSP.admin', 'TestingLabsMSP.peer', 'TestingLabsMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('TestingLabsMSP.admin', 'TestingLabsMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('TestingLabsMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('TestingLabsMSP.peer')"
+      AnchorPeers:
+        - Host: peer0.labs.herbaltrace.com
+          Port: 9051
+
+  - &Processors
+      Name: ProcessorsMSP
+      ID: ProcessorsMSP
+      MSPDir: ../organizations/peerOrganizations/processors.herbaltrace.com/msp
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('ProcessorsMSP.admin', 'ProcessorsMSP.peer', 'ProcessorsMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('ProcessorsMSP.admin', 'ProcessorsMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('ProcessorsMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('ProcessorsMSP.peer')"
+      AnchorPeers:
+        - Host: peer0.processors.herbaltrace.com
+          Port: 11051
+
+  - &Manufacturers
+      Name: ManufacturersMSP
+      ID: ManufacturersMSP
+      MSPDir: ../organizations/peerOrganizations/manufacturers.herbaltrace.com/msp
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('ManufacturersMSP.admin', 'ManufacturersMSP.peer', 'ManufacturersMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('ManufacturersMSP.admin', 'ManufacturersMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('ManufacturersMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('ManufacturersMSP.peer')"
+      AnchorPeers:
+        - Host: peer0.manufacturers.herbaltrace.com
+          Port: 13051
+
+Capabilities:
+  Channel: &ChannelCapabilities
+    V2_0: true
+  Orderer: &OrdererCapabilities
+    V2_0: true
+  Application: &ApplicationCapabilities
+    V2_0: true
+
+Application: &ApplicationDefaults
+  Organizations:
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    LifecycleEndorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+    Endorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+  Capabilities:
+    <<: *ApplicationCapabilities
+
+Orderer: &OrdererDefaults
+  OrdererType: etcdraft
+  Addresses:
+    - orderer.herbaltrace.com:7050
+    - orderer2.herbaltrace.com:8050
+    - orderer3.herbaltrace.com:9050
+  EtcdRaft:
+    Consenters:
+      - Host: orderer.herbaltrace.com
+        Port: 7050
+        ClientTLSCert: ../organizations/ordererOrganizations/herbaltrace.com/orderers/orderer.herbaltrace.com/tls/server.crt
+        ServerTLSCert: ../organizations/ordererOrganizations/herbaltrace.com/orderers/orderer.herbaltrace.com/tls/server.crt
+      - Host: orderer2.herbaltrace.com
+        Port: 8050
+        ClientTLSCert: ../organizations/ordererOrganizations/herbaltrace.com/orderers/orderer2.herbaltrace.com/tls/server.crt
+        ServerTLSCert: ../organizations/ordererOrganizations/herbaltrace.com/orderers/orderer2.herbaltrace.com/tls/server.crt
+      - Host: orderer3.herbaltrace.com
+        Port: 9050
+        ClientTLSCert: ../organizations/ordererOrganizations/herbaltrace.com/orderers/orderer3.herbaltrace.com/tls/server.crt
+        ServerTLSCert: ../organizations/ordererOrganizations/herbaltrace.com/orderers/orderer3.herbaltrace.com/tls/server.crt
+  BatchTimeout: 2s
+  BatchSize:
+    MaxMessageCount: 10
+    AbsoluteMaxBytes: 99 MB
+    PreferredMaxBytes: 512 KB
+  Organizations:
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    BlockValidation:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+
+Channel: &ChannelDefaults
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+  Capabilities:
+    <<: *ChannelCapabilities
+
+Profiles:
+  HerbalTraceOrdererGenesis:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      Organizations:
+        - *OrdererOrg
+      Capabilities: *OrdererCapabilities
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *FarmersCoop
+        - *TestingLabs
+        - *Processors
+        - *Manufacturers
+    Consortiums:
+      HerbalTraceConsortium:
+        Organizations:
+          - *FarmersCoop
+          - *TestingLabs
+          - *Processors
+          - *Manufacturers
+
+  HerbalTraceChannel:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      Organizations:
+        - *OrdererOrg
+      Capabilities: *OrdererCapabilities
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *FarmersCoop
+        - *TestingLabs
+        - *Processors
+        - *Manufacturers
+      Capabilities: *ApplicationCapabilities

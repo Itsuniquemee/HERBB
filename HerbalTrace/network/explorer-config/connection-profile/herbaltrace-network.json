@@ -1,0 +1,163 @@
+{
+  "name": "herbaltrace-network",
+  "version": "1.0.0",
+  "client": {
+    "tlsEnable": true,
+    "adminCredential": {
+      "id": "exploreradmin",
+      "password": "exploreradminpw"
+    },
+    "enableAuthentication": false,
+    "organization": "FarmersCoopMSP",
+    "connection": {
+      "timeout": {
+        "peer": {
+          "endorser": "300"
+        },
+        "orderer": "300"
+      }
+    }
+  },
+  "channels": {
+    "herbaltrace-channel": {
+      "peers": {
+        "peer0.farmers.herbaltrace.com": {},
+        "peer1.farmers.herbaltrace.com": {},
+        "peer0.labs.herbaltrace.com": {},
+        "peer1.labs.herbaltrace.com": {},
+        "peer0.processors.herbaltrace.com": {},
+        "peer1.processors.herbaltrace.com": {},
+        "peer0.manufacturers.herbaltrace.com": {},
+        "peer1.manufacturers.herbaltrace.com": {}
+      }
+    }
+  },
+  "organizations": {
+    "FarmersCoopMSP": {
+      "mspid": "FarmersCoopMSP",
+      "adminPrivateKey": {
+        "path": "/tmp/crypto/peerOrganizations/farmers.herbaltrace.com/users/Admin@farmers.herbaltrace.com/msp/keystore/priv_sk"
+      },
+      "peers": [
+        "peer0.farmers.herbaltrace.com",
+        "peer1.farmers.herbaltrace.com"
+      ],
+      "signedCert": {
+        "path": "/tmp/crypto/peerOrganizations/farmers.herbaltrace.com/users/Admin@farmers.herbaltrace.com/msp/signcerts/Admin@farmers.herbaltrace.com-cert.pem"
+      }
+    },
+    "TestingLabsMSP": {
+      "mspid": "TestingLabsMSP",
+      "adminPrivateKey": {
+        "path": "/tmp/crypto/peerOrganizations/labs.herbaltrace.com/users/Admin@labs.herbaltrace.com/msp/keystore/priv_sk"
+      },
+      "peers": [
+        "peer0.labs.herbaltrace.com",
+        "peer1.labs.herbaltrace.com"
+      ],
+      "signedCert": {
+        "path": "/tmp/crypto/peerOrganizations/labs.herbaltrace.com/users/Admin@labs.herbaltrace.com/msp/signcerts/Admin@labs.herbaltrace.com-cert.pem"
+      }
+    },
+    "ProcessorsMSP": {
+      "mspid": "ProcessorsMSP",
+      "adminPrivateKey": {
+        "path": "/tmp/crypto/peerOrganizations/processors.herbaltrace.com/users/Admin@processors.herbaltrace.com/msp/keystore/priv_sk"
+      },
+      "peers": [
+        "peer0.processors.herbaltrace.com",
+        "peer1.processors.herbaltrace.com"
+      ],
+      "signedCert": {
+        "path": "/tmp/crypto/peerOrganizations/processors.herbaltrace.com/users/Admin@processors.herbaltrace.com/msp/signcerts/Admin@processors.herbaltrace.com-cert.pem"
+      }
+    },
+    "ManufacturersMSP": {
+      "mspid": "ManufacturersMSP",
+      "adminPrivateKey": {
+        "path": "/tmp/crypto/peerOrganizations/manufacturers.herbaltrace.com/users/Admin@manufacturers.herbaltrace.com/msp/keystore/priv_sk"
+      },
+      "peers": [
+        "peer0.manufacturers.herbaltrace.com",
+        "peer1.manufacturers.herbaltrace.com"
+      ],
+      "signedCert": {
+        "path": "/tmp/crypto/peerOrganizations/manufacturers.herbaltrace.com/users/Admin@manufacturers.herbaltrace.com/msp/signcerts/Admin@manufacturers.herbaltrace.com-cert.pem"
+      }
+    }
+  },
+  "peers": {
+    "peer0.farmers.herbaltrace.com": {
+      "tlsCACerts": {
+        "path": "/tmp/crypto/peerOrganizations/farmers.herbaltrace.com/peers/peer0.farmers.herbaltrace.com/tls/ca.crt"
+      },
+      "url": "grpcs://peer0.farmers.herbaltrace.com:7051",
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.farmers.herbaltrace.com"
+      }
+    },
+    "peer1.farmers.herbaltrace.com": {
+      "tlsCACerts": {
+        "path": "/tmp/crypto/peerOrganizations/farmers.herbaltrace.com/peers/peer1.farmers.herbaltrace.com/tls/ca.crt"
+      },
+      "url": "grpcs://peer1.farmers.herbaltrace.com:8051",
+      "grpcOptions": {
+        "ssl-target-name-override": "peer1.farmers.herbaltrace.com"
+      }
+    },
+    "peer0.labs.herbaltrace.com": {
+      "tlsCACerts": {
+        "path": "/tmp/crypto/peerOrganizations/labs.herbaltrace.com/peers/peer0.labs.herbaltrace.com/tls/ca.crt"
+      },
+      "url": "grpcs://peer0.labs.herbaltrace.com:9051",
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.labs.herbaltrace.com"
+      }
+    },
+    "peer1.labs.herbaltrace.com": {
+      "tlsCACerts": {
+        "path": "/tmp/crypto/peerOrganizations/labs.herbaltrace.com/peers/peer1.labs.herbaltrace.com/tls/ca.crt"
+      },
+      "url": "grpcs://peer1.labs.herbaltrace.com:10051",
+      "grpcOptions": {
+        "ssl-target-name-override": "peer1.labs.herbaltrace.com"
+      }
+    },
+    "peer0.processors.herbaltrace.com": {
+      "tlsCACerts": {
+        "path": "/tmp/crypto/peerOrganizations/processors.herbaltrace.com/peers/peer0.processors.herbaltrace.com/tls/ca.crt"
+      },
+      "url": "grpcs://peer0.processors.herbaltrace.com:11051",
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.processors.herbaltrace.com"
+      }
+    },
+    "peer1.processors.herbaltrace.com": {
+      "tlsCACerts": {
+        "path": "/tmp/crypto/peerOrganizations/processors.herbaltrace.com/peers/peer1.processors.herbaltrace.com/tls/ca.crt"
+      },
+      "url": "grpcs://peer1.processors.herbaltrace.com:12051",
+      "grpcOptions": {
+        "ssl-target-name-override": "peer1.processors.herbaltrace.com"
+      }
+    },
+    "peer0.manufacturers.herbaltrace.com": {
+      "tlsCACerts": {
+        "path": "/tmp/crypto/peerOrganizations/manufacturers.herbaltrace.com/peers/peer0.manufacturers.herbaltrace.com/tls/ca.crt"
+      },
+      "url": "grpcs://peer0.manufacturers.herbaltrace.com:13051",
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.manufacturers.herbaltrace.com"
+      }
+    },
+    "peer1.manufacturers.herbaltrace.com": {
+      "tlsCACerts": {
+        "path": "/tmp/crypto/peerOrganizations/manufacturers.herbaltrace.com/peers/peer1.manufacturers.herbaltrace.com/tls/ca.crt"
+      },
+      "url": "grpcs://peer1.manufacturers.herbaltrace.com:14051",
+      "grpcOptions": {
+        "ssl-target-name-override": "peer1.manufacturers.herbaltrace.com"
+      }
+    }
+  }
+}

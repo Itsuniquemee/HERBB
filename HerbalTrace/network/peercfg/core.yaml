@@ -1,0 +1,179 @@
+peer:
+  id: cli
+  networkId: herbaltrace
+  listenAddress: 0.0.0.0:7051
+  address: 0.0.0.0:7051
+  addressAutoDetect: false
+  
+  fileSystemPath: /var/hyperledger/production
+  
+  mspConfigPath: /etc/hyperledger/fabric/msp
+  localMspId: FarmersMSP
+  
+  BCCSP:
+    Default: SW
+    SW:
+      Hash: SHA2
+      Security: 256
+      FileKeyStore:
+        KeyStore:
+    PKCS11:
+      Library:
+      Label:
+      Pin:
+      Hash:
+      Security:
+      FileKeyStore:
+        KeyStore:
+  
+  tls:
+    enabled: true
+    clientAuthRequired: false
+    cert:
+      file: /etc/hyperledger/fabric/tls/server.crt
+    key:
+      file: /etc/hyperledger/fabric/tls/server.key
+    rootcert:
+      file: /etc/hyperledger/fabric/tls/ca.crt
+    clientRootCAs:
+      files:
+        - /etc/hyperledger/fabric/tls/ca.crt
+    clientKey:
+      file:
+    clientCert:
+      file:
+  
+  authentication:
+    timewindow: 15m
+  
+  gossip:
+    bootstrap: peer0.farmers.herbaltrace.com:7051
+    useLeaderElection: true
+    orgLeader: false
+    membershipTrackerInterval: 5s
+    endpoint:
+    maxBlockCountToStore: 10
+    maxPropagationBurstLatency: 10ms
+    maxPropagationBurstSize: 10
+    propagateIterations: 1
+    propagatePeerNum: 3
+    pullInterval: 4s
+    pullPeerNum: 3
+    requestStateInfoInterval: 4s
+    publishStateInfoInterval: 4s
+    stateInfoRetentionInterval:
+    publishCertPeriod: 10s
+    skipBlockVerification: false
+    dialTimeout: 3s
+    connTimeout: 2s
+    recvBuffSize: 20
+    sendBuffSize: 200
+    digestWaitTime: 1s
+    requestWaitTime: 1500ms
+    responseWaitTime: 2s
+    aliveTimeInterval: 5s
+    aliveExpirationTimeout: 25s
+    reconnectInterval: 25s
+    externalEndpoint: peer0.farmers.herbaltrace.com:7051
+    election:
+      startupGracePeriod: 15s
+      membershipSampleInterval: 1s
+      leaderAliveThreshold: 10s
+      leaderElectionDuration: 5s
+    pvtData:
+      pullRetryThreshold: 60s
+      transientstoreMaxBlockRetention: 1000
+      pushAckTimeout: 3s
+      btlPullMargin: 10
+      reconcileBatchSize: 10
+      reconcileSleepInterval: 1m
+      reconciliationEnabled: true
+      skipPullingInvalidTransactionsDuringCommit: false
+      implicitCollectionDisseminationPolicy:
+        requiredPeerCount: 0
+        maxPeerCount: 1
+    state:
+      enabled: true
+      checkInterval: 10s
+      responseTimeout: 3s
+      batchSize: 10
+      blockBufferSize: 20
+      maxRetries: 3
+  
+  events:
+    address: 0.0.0.0:7053
+    buffersize: 100
+    timeout: 10ms
+    timewindow: 15m
+    keepalive:
+      minInterval: 60s
+    
+  delivery:
+    reconnectTotalTimeThreshold: 3600s
+    connTimeout: 3s
+    reConnectBackoffThreshold: 3600s
+    addressOverrides:
+
+  handlers:
+    authFilters:
+      - name: DefaultAuth
+      - name: ExpirationCheck
+    decorators:
+      - name: DefaultDecorator
+    endorsers:
+      escc:
+        name: DefaultEndorsement
+        library:
+    validators:
+      vscc:
+        name: DefaultValidation
+        library:
+  
+chaincode:
+  id:
+    path:
+    name:
+  builder: hyperledger/fabric-ccenv:2.5
+  pull: false
+  golang:
+    runtime: hyperledger/fabric-baseos:2.5
+    dynamicLink: false
+  java:
+    runtime: hyperledger/fabric-javaenv:2.5
+  node:
+    runtime: hyperledger/fabric-baseimage:2.5
+  externalBuilders: []
+  installTimeout: 300s
+  startuptimeout: 300s
+  executetimeout: 30s
+  mode: net
+  keepalive: 0
+  system:
+    _lifecycle: enable
+    cscc: enable
+    lscc: enable
+    qscc: enable
+  logging:
+    level:  info
+    shim:   warning
+    format: '%{color}%{time:2006-01-02 15:04:05.000 MST} [%{module}] %{shortfunc} -> %{level:.4s} %{id:03x}%{color:reset} %{message}'
+
+vm:
+  endpoint: unix:///host/var/run/docker.sock
+  docker:
+    tls:
+      enabled: false
+      ca:
+        file: docker/ca.crt
+      cert:
+        file: docker/tls.crt
+      key:
+        file: docker/tls.key
+    attachStdout: false
+    hostConfig:
+      NetworkMode: herbaltrace-network
+      LogConfig:
+        Type: json-file
+        Config:
+          max-size: "50m"
+          max-file: "5" 

@@ -1,0 +1,8 @@
+{
+  "index": {
+    "fields": ["status", "severity", "alertType", "createdDate"]
+  },
+  "ddoc": "indexAlertStatusDoc",
+  "name": "indexAlertStatus",
+  "type": "json"
+}

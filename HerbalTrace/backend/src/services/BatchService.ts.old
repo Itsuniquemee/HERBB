@@ -1,0 +1,257 @@
+import { Gateway, Contract } from 'fabric-network';
+import { getGateway } from '../fabric/connection';
+
+interface BatchInput {
+  farmerId: string;
+  farmerName: string;
+  species: string;
+  totalQuantity: number;
+  unit: string;
+  collectionEventIds: string[];
+  harvestStartDate: string;
+  harvestEndDate: string;
+  status?: string;
+}
+
+export class BatchService {
+  private gateway: Gateway | null = null;
+  private contract: Contract | null = null;
+
+  /**
+   * Initialize the service with Fabric network connection
+   */
+  async initialize(organizationId: string = 'FarmersCoop'): Promise<void> {
+    try {
+      console.log(`[BatchService] Initializing for ${organizationId}...`);
+      
+      this.gateway = await getGateway(organizationId);
+      const network = await this.gateway.getNetwork('herbaltrace-channel');
+      this.contract = network.getContract('herbaltrace');
+      
+      console.log('[BatchService] Successfully connected to herbaltrace-channel');
+    } catch (error: any) {
+      console.error('[BatchService] Initialization failed:', error.message);
+      throw new Error(`Failed to initialize BatchService: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create a new batch
+   */
+  async createBatch(input: BatchInput): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[BatchService] Creating batch for farmer ${input.farmerId}...`);
+
+      const batch = {
+        farmerId: input.farmerId,
+        farmerName: input.farmerName,
+        species: input.species,
+        totalQuantity: input.totalQuantity,
+        unit: input.unit,
+        collectionEventIds: input.collectionEventIds,
+        harvestStartDate: input.harvestStartDate,
+        harvestEndDate: input.harvestEndDate,
+        createdDate: new Date().toISOString(),
+        status: input.status || 'collected'
+      };
+
+      console.log('[BatchService] Submitting CreateBatch transaction...');
+      const result = await this.contract.submitTransaction(
+        'CreateBatch',
+        JSON.stringify(batch)
+      );
+
+      const response = JSON.parse(result.toString());
+      console.log(`[BatchService] Batch created: ${response.batchId}`);
+
+      return response;
+    } catch (error: any) {
+      console.error('[BatchService] CreateBatch failed:', error.message);
+      throw new Error(`Failed to create batch: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get batch by ID
+   */
+  async getBatch(batchId: string): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[BatchService] Fetching batch ${batchId}...`);
+      
+      const result = await this.contract.evaluateTransaction('GetBatch', batchId);
+      const batch = JSON.parse(result.toString());
+      
+      console.log(`[BatchService] Batch retrieved: ${batchId}`);
+      return batch;
+    } catch (error: any) {
+      console.error('[BatchService] GetBatch failed:', error.message);
+      throw new Error(`Failed to get batch: ${error.message}`);
+    }
+  }
+
+  /**
+   * Assign batch to processor
+   */
+  async assignBatchToProcessor(batchId: string, processorId: string, processorName: string, assignedBy: string): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[BatchService] Assigning batch ${batchId} to processor ${processorId}...`);
+      
+      const result = await this.contract.submitTransaction(
+        'AssignBatchToProcessor',
+        batchId,
+        processorId,
+        processorName,
+        assignedBy
+      );
+      
+      const response = JSON.parse(result.toString());
+      console.log(`[BatchService] Batch ${batchId} assigned to processor ${processorId}`);
+      
+      return response;
+    } catch (error: any) {
+      console.error('[BatchService] AssignBatchToProcessor failed:', error.message);
+      throw new Error(`Failed to assign batch to processor: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update batch status
+   */
+  async updateBatchStatus(batchId: string, newStatus: string): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[BatchService] Updating batch ${batchId} status to ${newStatus}...`);
+      
+      const result = await this.contract.submitTransaction(
+        'UpdateBatchStatus',
+        batchId,
+        newStatus
+      );
+      
+      const response = JSON.parse(result.toString());
+      console.log(`[BatchService] Batch ${batchId} status updated to ${newStatus}`);
+      
+      return response;
+    } catch (error: any) {
+      console.error('[BatchService] UpdateBatchStatus failed:', error.message);
+      throw new Error(`Failed to update batch status: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get batch history (full audit trail)
+   */
+  async getBatchHistory(batchId: string): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[BatchService] Fetching batch history for ${batchId}...`);
+      
+      const result = await this.contract.evaluateTransaction('GetBatchHistory', batchId);
+      const history = JSON.parse(result.toString());
+      
+      console.log(`[BatchService] Batch history retrieved for ${batchId}`);
+      return history;
+    } catch (error: any) {
+      console.error('[BatchService] GetBatchHistory failed:', error.message);
+      throw new Error(`Failed to get batch history: ${error.message}`);
+    }
+  }
+
+  /**
+   * Query batches by status (requires CouchDB index)
+   */
+  async queryBatchesByStatus(status: string): Promise<any[]> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[BatchService] Querying batches with status ${status}...`);
+      
+      const result = await this.contract.evaluateTransaction('QueryBatchesByStatus', status);
+      const batches = JSON.parse(result.toString());
+      
+      console.log(`[BatchService] Found ${batches.length} batches with status ${status}`);
+      return batches;
+    } catch (error: any) {
+      console.error('[BatchService] QueryBatchesByStatus failed:', error.message);
+      throw new Error(`Failed to query batches by status: ${error.message}`);
+    }
+  }
+
+  /**
+   * Query batches by processor (requires CouchDB index)
+   */
+  async queryBatchesByProcessor(processorId: string): Promise<any[]> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[BatchService] Querying batches for processor ${processorId}...`);
+      
+      const result = await this.contract.evaluateTransaction('QueryBatchesByProcessor', processorId);
+      const batches = JSON.parse(result.toString());
+      
+      console.log(`[BatchService] Found ${batches.length} batches for processor ${processorId}`);
+      return batches;
+    } catch (error: any) {
+      console.error('[BatchService] QueryBatchesByProcessor failed:', error.message);
+      throw new Error(`Failed to query batches by processor: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get pending batches (requires CouchDB index)
+   */
+  async getPendingBatches(): Promise<any[]> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[BatchService] Fetching pending batches...`);
+      
+      const result = await this.contract.evaluateTransaction('GetPendingBatches');
+      const batches = JSON.parse(result.toString());
+      
+      console.log(`[BatchService] Found ${batches.length} pending batches`);
+      return batches;
+    } catch (error: any) {
+      console.error('[BatchService] GetPendingBatches failed:', error.message);
+      throw new Error(`Failed to get pending batches: ${error.message}`);
+    }
+  }
+
+  /**
+   * Disconnect from Fabric network
+   */
+  async disconnect(): Promise<void> {
+    if (this.gateway) {
+      console.log('[BatchService] Disconnecting from Fabric network...');
+      this.gateway.disconnect();
+      this.gateway = null;
+      this.contract = null;
+    }
+  }
+}
+
+export default BatchService;

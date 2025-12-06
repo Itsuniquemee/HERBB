@@ -1,0 +1,51 @@
+{
+  "name": "herbaltrace-network",
+  "version": "1.0.0",
+  "client": {
+    "tlsEnable": true,
+    "adminCredential": {
+      "id": "admin",
+      "password": "adminpw"
+    },
+    "enableAuthentication": false,
+    "organization": "FarmersCoopMSP",
+    "connection": {
+      "timeout": {
+        "peer": {
+          "endorser": "300"
+        }
+      }
+    }
+  },
+  "channels": {
+    "herbaltrace-channel": {
+      "peers": {
+        "peer0.farmers.herbaltrace.com": {}
+      }
+    }
+  },
+  "organizations": {
+    "FarmersCoopMSP": {
+      "mspid": "FarmersCoopMSP",
+      "fullpath": true,
+      "adminPrivateKey": {
+        "path": "/tmp/crypto/peerOrganizations/farmers.herbaltrace.com/users/Admin@farmers.herbaltrace.com/msp/keystore/priv_sk"
+      },
+      "signedCert": {
+        "path": "/tmp/crypto/peerOrganizations/farmers.herbaltrace.com/users/Admin@farmers.herbaltrace.com/msp/signcerts/Admin@farmers.herbaltrace.com-cert.pem"
+      }
+    }
+  },
+  "peers": {
+    "peer0.farmers.herbaltrace.com": {
+      "tlsCACerts": {
+        "path": "/tmp/crypto/peerOrganizations/farmers.herbaltrace.com/peers/peer0.farmers.herbaltrace.com/tls/ca.crt"
+      },
+      "url": "grpcs://peer0.farmers.herbaltrace.com:7051",
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.farmers.herbaltrace.com",
+        "hostnameOverride": "peer0.farmers.herbaltrace.com"
+      }
+    }
+  }
+}

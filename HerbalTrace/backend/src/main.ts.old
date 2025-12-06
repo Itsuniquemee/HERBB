@@ -1,0 +1,70 @@
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Enable CORS
+  app.enableCors({
+    origin: '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+
+  // Global validation pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  // API prefix
+  app.setGlobalPrefix(process.env.API_PREFIX || 'api/v1');
+
+  // Swagger documentation
+  const config = new DocumentBuilder()
+    .setTitle('HerbalTrace API')
+    .setDescription('Supply Chain Traceability Platform for Herbal Products')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .addTag('Authentication')
+    .addTag('Collection Events')
+    .addTag('Batches')
+    .addTag('Quality Tests')
+    .addTag('Processing')
+    .addTag('Products')
+    .addTag('Provenance')
+    .addTag('Season Windows')
+    .addTag('Harvest Limits')
+    .addTag('Alerts')
+    .addTag('Analytics')
+    .addTag('Health')
+    .build();
+  
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
+  
+  console.log(`
+  ╔══════════════════════════════════════════════════════════╗
+  ║                                                          ║
+  ║   🌿 HerbalTrace Backend API                            ║
+  ║                                                          ║
+  ║   Server running on: http://localhost:${port}             ║
+  ║   API Documentation: http://localhost:${port}/api/docs    ║
+  ║   API Endpoint: http://localhost:${port}/api/v1           ║
+  ║                                                          ║
+  ║   Blockchain: ${process.env.FABRIC_CHAINCODE_NAME}                    ║
+  ║   Channel: ${process.env.FABRIC_CHANNEL_NAME}         ║
+  ║                                                          ║
+  ╚══════════════════════════════════════════════════════════╝
+  `);
+}
+
+bootstrap();

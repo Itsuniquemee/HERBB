@@ -1,0 +1,107 @@
+version: '3.7'
+
+networks:
+  herbaltrace:
+    name: herbaltrace
+    external: true
+
+services:
+  ca_farmerscoop:
+    image: hyperledger/fabric-ca:1.5.7
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-farmerscoop
+      - FABRIC_CA_SERVER_TLS_ENABLED=true
+      - FABRIC_CA_SERVER_PORT=7054
+      - FABRIC_CA_SERVER_OPERATIONS_LISTENADDRESS=0.0.0.0:17054
+    ports:
+      - "7054:7054"
+      - "17054:17054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ../organizations/peerOrganizations/farmerscoop.herbaltrace.com/ca:/etc/hyperledger/fabric-ca-server
+    container_name: ca_farmerscoop
+    networks:
+      - herbaltrace
+
+  ca_testinglabs:
+    image: hyperledger/fabric-ca:1.5.7
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-labs
+      - FABRIC_CA_SERVER_TLS_ENABLED=false
+      - FABRIC_CA_SERVER_PORT=8054
+      - FABRIC_CA_SERVER_OPERATIONS_LISTENADDRESS=0.0.0.0:18054
+    ports:
+      - "8054:8054"
+      - "18054:18054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ../organizations/peerOrganizations/labs.herbaltrace.com/ca:/etc/hyperledger/fabric-ca-server
+    container_name: ca_testinglabs
+    networks:
+      - herbaltrace
+
+  ca_processors:
+    image: hyperledger/fabric-ca:1.5.7
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-processors
+      - FABRIC_CA_SERVER_TLS_ENABLED=false
+      - FABRIC_CA_SERVER_PORT=9054
+      - FABRIC_CA_SERVER_OPERATIONS_LISTENADDRESS=0.0.0.0:19054
+    ports:
+      - "9054:9054"
+      - "19054:19054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ../organizations/peerOrganizations/processors.herbaltrace.com/ca:/etc/hyperledger/fabric-ca-server
+    container_name: ca_processors
+    networks:
+      - herbaltrace
+
+  ca_manufacturers:
+    image: hyperledger/fabric-ca:1.5.7
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-manufacturers
+      - FABRIC_CA_SERVER_TLS_ENABLED=false
+      - FABRIC_CA_SERVER_PORT=10054
+      - FABRIC_CA_SERVER_OPERATIONS_LISTENADDRESS=0.0.0.0:20054
+    ports:
+      - "10054:10054"
+      - "20054:20054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ../organizations/peerOrganizations/manufacturers.herbaltrace.com/ca:/etc/hyperledger/fabric-ca-server
+    container_name: ca_manufacturers
+    networks:
+      - herbaltrace
+
+  ca_orderer:
+    image: hyperledger/fabric-ca:1.5.7
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-orderer
+      - FABRIC_CA_SERVER_TLS_ENABLED=true
+      - FABRIC_CA_SERVER_PORT=11054
+      - FABRIC_CA_SERVER_OPERATIONS_LISTENADDRESS=0.0.0.0:21054
+    ports:
+      - "11054:11054"
+      - "21054:21054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ../organizations/ordererOrganizations/herbaltrace.com/ca:/etc/hyperledger/fabric-ca-server
+    container_name: ca_orderer
+    networks:
+      - herbaltrace

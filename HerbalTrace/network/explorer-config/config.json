@@ -1,0 +1,9 @@
+{
+  "network-configs": {
+    "herbaltrace-network": {
+      "name": "HerbalTrace Network",
+      "profile": "./connection-profile/herbaltrace-simple.json"
+    }
+  },
+  "license": "Apache-2.0"
+}

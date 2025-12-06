@@ -1,0 +1,361 @@
+import { Gateway, Wallets, Network } from 'fabric-network';
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface BlockchainInfo {
+  channelName: string;
+  currentBlockHeight: number;
+  currentBlockHash: string;
+  previousBlockHash: string;
+}
+
+export interface ChaincodInfo {
+  name: string;
+  version: string;
+  sequence: number;
+  endorsementPlugin: string;
+  validationPlugin: string;
+}
+
+export interface NetworkInfo {
+  peers: PeerInfo[];
+  orderers: string[];
+  organizations: string[];
+}
+
+export interface PeerInfo {
+  name: string;
+  url: string;
+  mspid: string;
+}
+
+export interface BlockDetails {
+  blockNumber: number;
+  blockHash: string;
+  previousHash: string;
+  dataHash: string;
+  transactionCount: number;
+  transactions: TransactionSummary[];
+  timestamp: string;
+}
+
+export interface TransactionSummary {
+  txId: string;
+  timestamp: string;
+  type: string;
+  chaincodeName?: string;
+  functionName?: string;
+  isValid: boolean;
+  validationCode: string;
+}
+
+export class BlockchainMonitoringService {
+  private gateway: Gateway;
+  private network: Network;
+  private channelName: string;
+
+  constructor() {
+    this.gateway = new Gateway();
+    this.channelName = 'herbaltrace-channel';
+  }
+
+  /**
+   * Initialize connection to the blockchain network
+   */
+  async initialize(): Promise<void> {
+    try {
+      // Load connection profile
+      const ccpPath = path.resolve(__dirname, '..', '..', 'network', 'organizations', 'peerOrganizations', 'farmers.herbaltrace.com', 'connection-farmers.json');
+      const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
+
+      // Load wallet
+      const walletPath = path.join(__dirname, '..', '..', 'network', 'wallet');
+      const wallet = await Wallets.newFileSystemWallet(walletPath);
+
+      // Get admin identity
+      const identity = await wallet.get('admin');
+      if (!identity) {
+        throw new Error('Admin identity not found in wallet');
+      }
+
+      // Connect to gateway
+      await this.gateway.connect(ccp, {
+        wallet,
+        identity: 'admin',
+        discovery: { enabled: true, asLocalhost: false }
+      });
+
+      // Get network instance
+      this.network = await this.gateway.getNetwork(this.channelName);
+      
+      console.log('✅ Blockchain monitoring service initialized');
+    } catch (error) {
+      console.error('Failed to initialize blockchain monitoring:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current blockchain information
+   */
+  async getBlockchainInfo(): Promise<BlockchainInfo> {
+    try {
+      const channel = this.network.getChannel();
+      const queryHandler = this.network.getContract('qscc'); // QSCC = Query System Chaincode
+      
+      // Get channel info
+      const infoBytes = await channel.queryInfo();
+      
+      return {
+        channelName: this.channelName,
+        currentBlockHeight: Number(infoBytes.height),
+        currentBlockHash: infoBytes.currentBlockHash.toString('hex'),
+        previousBlockHash: infoBytes.previousBlockHash.toString('hex')
+      };
+    } catch (error) {
+      console.error('Failed to get blockchain info:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get specific block by number
+   */
+  async getBlockByNumber(blockNumber: number): Promise<BlockDetails> {
+    try {
+      const channel = this.network.getChannel();
+      const block = await channel.queryBlock(blockNumber);
+      
+      const transactions: TransactionSummary[] = [];
+      
+      if (block.data && block.data.data) {
+        for (let i = 0; i < block.data.data.length; i++) {
+          const envelope = block.data.data[i];
+          const payload = envelope.payload;
+          const header = payload.header;
+          const channelHeader = header.channel_header;
+          
+          const txId = channelHeader.tx_id;
+          const timestamp = new Date(channelHeader.timestamp).toISOString();
+          const type = channelHeader.type;
+          
+          // Get validation code
+          const validationCode = block.metadata.metadata[2][i];
+          const isValid = validationCode === 0;
+          
+          // Try to extract chaincode info
+          let chaincodeName: string | undefined;
+          let functionName: string | undefined;
+          
+          if (payload.data && payload.data.actions) {
+            const action = payload.data.actions[0];
+            if (action && action.payload && action.payload.chaincode_proposal_payload) {
+              const ccPayload = action.payload.chaincode_proposal_payload;
+              if (ccPayload.input && ccPayload.input.chaincode_spec) {
+                chaincodeName = ccPayload.input.chaincode_spec.chaincode_id.name;
+                if (ccPayload.input.chaincode_spec.input && ccPayload.input.chaincode_spec.input.args) {
+                  const args = ccPayload.input.chaincode_spec.input.args;
+                  if (args.length > 0) {
+                    functionName = args[0].toString('utf8');
+                  }
+                }
+              }
+            }
+          }
+          
+          transactions.push({
+            txId,
+            timestamp,
+            type: this.getTransactionType(type),
+            chaincodeName,
+            functionName,
+            isValid,
+            validationCode: this.getValidationCodeName(validationCode)
+          });
+        }
+      }
+      
+      return {
+        blockNumber,
+        blockHash: block.header.data_hash.toString('hex'),
+        previousHash: block.header.previous_hash.toString('hex'),
+        dataHash: block.data.hash.toString('hex'),
+        transactionCount: transactions.length,
+        transactions,
+        timestamp: transactions.length > 0 ? transactions[0].timestamp : new Date().toISOString()
+      };
+    } catch (error) {
+      console.error(`Failed to get block ${blockNumber}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get recent blocks
+   */
+  async getRecentBlocks(count: number = 10): Promise<BlockDetails[]> {
+    try {
+      const info = await this.getBlockchainInfo();
+      const currentHeight = info.currentBlockHeight;
+      const startBlock = Math.max(0, currentHeight - count);
+      
+      const blocks: BlockDetails[] = [];
+      for (let i = currentHeight - 1; i >= startBlock && i >= 0; i--) {
+        const block = await this.getBlockByNumber(i);
+        blocks.push(block);
+      }
+      
+      return blocks;
+    } catch (error) {
+      console.error('Failed to get recent blocks:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get transaction by ID
+   */
+  async getTransactionById(txId: string): Promise<any> {
+    try {
+      const channel = this.network.getChannel();
+      const transaction = await channel.queryTransaction(txId);
+      
+      return {
+        txId: transaction.transactionEnvelope.payload.header.channel_header.tx_id,
+        validationCode: transaction.validationCode,
+        isValid: transaction.validationCode === 0,
+        blockNumber: transaction.blockNumber,
+        timestamp: new Date(transaction.transactionEnvelope.payload.header.channel_header.timestamp).toISOString()
+      };
+    } catch (error) {
+      console.error(`Failed to get transaction ${txId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get chaincode information
+   */
+  async getChaincodeInfo(): Promise<ChaincodeInfo[]> {
+    try {
+      // This requires using lifecycle chaincode to query committed chaincodes
+      const contract = this.network.getContract('_lifecycle');
+      const result = await contract.evaluateTransaction('QueryChaincodeDefinitions', '');
+      
+      const definitions = JSON.parse(result.toString());
+      
+      return definitions.chaincode_definitions.map((def: any) => ({
+        name: def.name,
+        version: def.version,
+        sequence: def.sequence,
+        endorsementPlugin: def.endorsement_plugin,
+        validationPlugin: def.validation_plugin
+      }));
+    } catch (error) {
+      console.error('Failed to get chaincode info:', error);
+      // Return hardcoded info as fallback
+      return [{
+        name: 'herbaltrace',
+        version: '2.0',
+        sequence: 2,
+        endorsementPlugin: 'escc',
+        validationPlugin: 'vscc'
+      }];
+    }
+  }
+
+  /**
+   * Get network information
+   */
+  async getNetworkInfo(): Promise<NetworkInfo> {
+    try {
+      const channel = this.network.getChannel();
+      const peers = channel.getPeers();
+      const orderers = channel.getOrderers();
+      
+      const peerInfo: PeerInfo[] = peers.map(peer => ({
+        name: peer.name,
+        url: peer.endpoint.url,
+        mspid: peer.mspid || 'Unknown'
+      }));
+      
+      const ordererNames = orderers.map(orderer => orderer.name);
+      
+      // Get unique organizations
+      const organizations = Array.from(new Set(peerInfo.map(p => p.mspid)));
+      
+      return {
+        peers: peerInfo,
+        orderers: ordererNames,
+        organizations
+      };
+    } catch (error) {
+      console.error('Failed to get network info:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Close gateway connection
+   */
+  async disconnect(): Promise<void> {
+    this.gateway.disconnect();
+    console.log('✅ Blockchain monitoring service disconnected');
+  }
+
+  /**
+   * Helper: Get transaction type name
+   */
+  private getTransactionType(type: number): string {
+    const types: { [key: number]: string } = {
+      0: 'MESSAGE',
+      1: 'CONFIG',
+      2: 'CONFIG_UPDATE',
+      3: 'ENDORSER_TRANSACTION',
+      4: 'ORDERER_TRANSACTION',
+      5: 'DELIVER_SEEK_INFO',
+      6: 'CHAINCODE_PACKAGE'
+    };
+    return types[type] || `UNKNOWN(${type})`;
+  }
+
+  /**
+   * Helper: Get validation code name
+   */
+  private getValidationCodeName(code: number): string {
+    const codes: { [key: number]: string } = {
+      0: 'VALID',
+      1: 'NIL_ENVELOPE',
+      2: 'BAD_PAYLOAD',
+      3: 'BAD_COMMON_HEADER',
+      4: 'BAD_CREATOR_SIGNATURE',
+      5: 'INVALID_ENDORSER_TRANSACTION',
+      6: 'INVALID_CONFIG_TRANSACTION',
+      7: 'UNSUPPORTED_TX_PAYLOAD',
+      8: 'BAD_PROPOSAL_TXID',
+      9: 'DUPLICATE_TXID',
+      10: 'ENDORSEMENT_POLICY_FAILURE',
+      11: 'MVCC_READ_CONFLICT',
+      12: 'PHANTOM_READ_CONFLICT',
+      13: 'UNKNOWN_TX_TYPE',
+      14: 'TARGET_CHAIN_NOT_FOUND',
+      15: 'MARSHAL_TX_ERROR',
+      16: 'NIL_TXACTION',
+      17: 'EXPIRED_CHAINCODE',
+      18: 'CHAINCODE_VERSION_CONFLICT',
+      19: 'BAD_HEADER_EXTENSION',
+      20: 'BAD_CHANNEL_HEADER',
+      21: 'BAD_RESPONSE_PAYLOAD',
+      22: 'BAD_RWSET',
+      23: 'ILLEGAL_WRITESET',
+      24: 'INVALID_WRITESET',
+      25: 'INVALID_CHAINCODE',
+      254: 'NOT_VALIDATED',
+      255: 'INVALID_OTHER_REASON'
+    };
+    return codes[code] || `UNKNOWN(${code})`;
+  }
+}
+
+// Export singleton instance
+export const blockchainMonitoringService = new BlockchainMonitoringService();

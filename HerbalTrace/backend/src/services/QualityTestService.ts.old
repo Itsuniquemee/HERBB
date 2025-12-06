@@ -1,0 +1,230 @@
+import { Gateway, Contract } from 'fabric-network';
+import { getGateway } from '../fabric/connection';
+import axios from 'axios';
+import FormData from 'form-data';
+import fs from 'fs';
+
+interface QualityTestInput {
+  collectionEventId?: string;
+  batchId: string;
+  labId: string;
+  labName: string;
+  testTypes: string[]; // "moisture", "pesticide", "dna_barcode", "heavy_metals", "microbial", "aflatoxins"
+  moistureContent?: number;
+  pesticideResults?: { [key: string]: string }; // pesticide name -> "pass"/"fail"
+  heavyMetals?: { [key: string]: number }; // metal name -> ppm
+  dnaBarcodeMatch?: boolean;
+  dnaSequence?: string;
+  microbialLoad?: number; // CFU/g
+  aflatoxins?: number; // ppb
+  overallResult: 'pass' | 'fail' | 'conditional';
+  certificateFile?: string; // File path or base64 data
+  testerName: string;
+  testerSignature?: string;
+}
+
+export class QualityTestService {
+  private gateway: Gateway | null = null;
+  private contract: Contract | null = null;
+  private ipfsEndpoint: string = process.env.IPFS_ENDPOINT || 'http://localhost:5001/api/v0';
+
+  /**
+   * Initialize the service with Fabric network connection
+   */
+  async initialize(organizationId: string = 'TestingLabs'): Promise<void> {
+    try {
+      console.log(`[QualityTestService] Initializing for ${organizationId}...`);
+      
+      this.gateway = await getGateway(organizationId);
+      const network = await this.gateway.getNetwork('herbaltrace-channel');
+      this.contract = network.getContract('herbaltrace');
+      
+      console.log('[QualityTestService] Successfully connected to herbaltrace-channel');
+    } catch (error: any) {
+      console.error('[QualityTestService] Initialization failed:', error.message);
+      throw new Error(`Failed to initialize QualityTestService: ${error.message}`);
+    }
+  }
+
+  /**
+   * Upload certificate PDF to IPFS and return hash
+   */
+  private async uploadCertificateToIPFS(certificateData: string): Promise<string> {
+    try {
+      let buffer: Buffer;
+      
+      // If certificateData is base64, decode it
+      if (certificateData.startsWith('data:application/pdf')) {
+        const base64Data = certificateData.split(',')[1];
+        buffer = Buffer.from(base64Data, 'base64');
+      } else {
+        // Assume it's a file path
+        buffer = fs.readFileSync(certificateData);
+      }
+
+      const formData = new FormData();
+      formData.append('file', buffer, 'certificate.pdf');
+
+      const response = await axios.post(`${this.ipfsEndpoint}/add`, formData, {
+        headers: formData.getHeaders(),
+        timeout: 30000
+      });
+
+      const ipfsHash = response.data.Hash;
+      console.log(`[QualityTestService] Certificate uploaded to IPFS: ${ipfsHash}`);
+      return ipfsHash;
+    } catch (error: any) {
+      console.error('[QualityTestService] IPFS upload failed:', error.message);
+      return '';
+    }
+  }
+
+  /**
+   * Create a new quality test (for lab portal)
+   */
+  async createQualityTest(input: QualityTestInput): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[QualityTestService] Creating quality test for batch ${input.batchId}...`);
+
+      // Upload certificate to IPFS if provided
+      let certificateUrl = '';
+      if (input.certificateFile) {
+        console.log(`[QualityTestService] Uploading certificate to IPFS...`);
+        const ipfsHash = await this.uploadCertificateToIPFS(input.certificateFile);
+        if (ipfsHash) {
+          certificateUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
+        }
+      }
+
+      // Prepare quality test JSON
+      const qualityTest = {
+        collectionEventId: input.collectionEventId || '',
+        batchId: input.batchId,
+        labId: input.labId,
+        labName: input.labName,
+        testDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+        timestamp: new Date().toISOString(),
+        testTypes: input.testTypes,
+        moistureContent: input.moistureContent || 0,
+        pesticideResults: input.pesticideResults || {},
+        heavyMetals: input.heavyMetals || {},
+        dnaBarcodeMatch: input.dnaBarcodeMatch !== undefined ? input.dnaBarcodeMatch : false,
+        dnaSequence: input.dnaSequence || '',
+        microbialLoad: input.microbialLoad || 0,
+        aflatoxins: input.aflatoxins || 0,
+        overallResult: input.overallResult,
+        certificateId: `CERT-${Date.now()}`,
+        certificateUrl: certificateUrl,
+        testerName: input.testerName,
+        testerSignature: input.testerSignature || '',
+        status: 'pending'
+      };
+
+      // Invoke CreateQualityTest chaincode function
+      console.log('[QualityTestService] Submitting transaction to blockchain...');
+      const result = await this.contract.submitTransaction(
+        'CreateQualityTest',
+        JSON.stringify(qualityTest)
+      );
+
+      const response = JSON.parse(result.toString());
+      console.log(`[QualityTestService] Quality test created: ${response.testId}`);
+
+      return response;
+    } catch (error: any) {
+      console.error('[QualityTestService] CreateQualityTest failed:', error.message);
+      throw new Error(`Failed to create quality test: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get quality test by ID
+   */
+  async getQualityTest(testId: string): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[QualityTestService] Fetching quality test ${testId}...`);
+      
+      const result = await this.contract.evaluateTransaction('GetQualityTest', testId);
+      const qualityTest = JSON.parse(result.toString());
+      
+      console.log(`[QualityTestService] Quality test retrieved: ${testId}`);
+      return qualityTest;
+    } catch (error: any) {
+      console.error('[QualityTestService] GetQualityTest failed:', error.message);
+      throw new Error(`Failed to get quality test: ${error.message}`);
+    }
+  }
+
+  /**
+   * Query quality tests by batch ID
+   */
+  async getQualityTestsByBatch(batchId: string): Promise<any[]> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[QualityTestService] Querying quality tests for batch ${batchId}...`);
+      
+      // This requires a CouchDB index on batchId field
+      const result = await this.contract.evaluateTransaction('QueryQualityTestsByBatch', batchId);
+      const tests = JSON.parse(result.toString());
+      
+      console.log(`[QualityTestService] Found ${tests.length} quality tests for batch ${batchId}`);
+      return tests;
+    } catch (error: any) {
+      console.error('[QualityTestService] QueryQualityTestsByBatch failed:', error.message);
+      throw new Error(`Failed to query quality tests by batch: ${error.message}`);
+    }
+  }
+
+  /**
+   * Approve or reject quality test (for admin/regulator)
+   */
+  async updateQualityTestStatus(testId: string, status: 'approved' | 'rejected', reviewedBy: string): Promise<any> {
+    if (!this.contract) {
+      throw new Error('Service not initialized. Call initialize() first.');
+    }
+
+    try {
+      console.log(`[QualityTestService] Updating quality test ${testId} status to ${status}...`);
+      
+      const result = await this.contract.submitTransaction(
+        'UpdateQualityTestStatus',
+        testId,
+        status,
+        reviewedBy
+      );
+      
+      const response = JSON.parse(result.toString());
+      console.log(`[QualityTestService] Quality test ${testId} status updated to ${status}`);
+      
+      return response;
+    } catch (error: any) {
+      console.error('[QualityTestService] UpdateQualityTestStatus failed:', error.message);
+      throw new Error(`Failed to update quality test status: ${error.message}`);
+    }
+  }
+
+  /**
+   * Disconnect from Fabric network
+   */
+  async disconnect(): Promise<void> {
+    if (this.gateway) {
+      console.log('[QualityTestService] Disconnecting from Fabric network...');
+      this.gateway.disconnect();
+      this.gateway = null;
+      this.contract = null;
+    }
+  }
+}
+
+export default QualityTestService;
