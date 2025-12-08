@@ -38,85 +38,137 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
     final stats = collectionProvider.getStatistics();
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF2D5F3F),
-              Color(0xFFF5F5DC),
-            ],
-            stops: [0.0, 0.3],
-          ),
-        ),
-        child: Container(
-          decoration: const BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('assets/images/leaf_pattern.png'),
-              repeat: ImageRepeat.repeat,
-              opacity: 0.1,
-              alignment: Alignment.topCenter,
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF2D5F3F),
+                  Color(0xFFF5F5DC),
+                ],
+                stops: [0.0, 0.3],
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                // Top Header
-                _buildTopHeader(themeProvider, localeProvider),
-                
-                // Content
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () => collectionProvider.loadEvents(),
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 16),
-                          
-                          // Welcome Card
-                          _buildWelcomeCard(authProvider, localeProvider),
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/images/leaf_pattern.png'),
+                  repeat: ImageRepeat.repeat,
+                  opacity: 0.1,
+                  alignment: Alignment.topCenter,
+                ),
+              ),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    // Top Header
+                    _buildTopHeader(themeProvider, localeProvider),
+                    
+                    // Content
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: () => collectionProvider.loadEvents(),
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 16),
+                              
+                              // Welcome Card
+                              _buildWelcomeCard(authProvider, localeProvider),
 
-                          const SizedBox(height: 24),
+                              const SizedBox(height: 24),
 
-                          // Content area with cream background
-                          Container(
-                            decoration: const BoxDecoration(
-                              color: Color.fromARGB(255, 252, 252, 252),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(32),
-                                topRight: Radius.circular(32),
+                              // Content area with cream background
+                              Container(
+                                decoration: const BoxDecoration(
+                                  color: Color.fromARGB(255, 252, 252, 252),
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: Radius.circular(32),
+                                    topRight: Radius.circular(32),
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(20.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Statistics Section
+                                      _buildStatsSection(stats, localeProvider),
+
+                                      const SizedBox(height: 32),
+
+                                      // Recent Submissions
+                                      _buildRecentSubmissions(stats, localeProvider, context),
+
+                                      const SizedBox(height: 100),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(20.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Statistics Section
-                                  _buildStatsSection(stats, localeProvider),
-
-                                  const SizedBox(height: 32),
-
-                                  // Recent Submissions
-                                  _buildRecentSubmissions(stats, localeProvider, context),
-
-                                  const SizedBox(height: 100),
-                                ],
-                              ),
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
+          // Floating Action Button - Fixed at bottom right
+          Positioned(
+            bottom: 20,
+            right: 20,
+            child: Material(
+              elevation: 8,
+              borderRadius: BorderRadius.circular(30),
+              shadowColor: const Color(0xFF2D5F3F).withOpacity(0.4),
+              child: InkWell(
+                onTap: () {
+                  Navigator.of(context).pushNamed(AppRouter.newCollection);
+                },
+                borderRadius: BorderRadius.circular(30),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2D5F3F), Color(0xFF3D7F5F)],
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.add_circle_outline,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        localeProvider.translate('new_collection'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: _buildBottomNav(localeProvider),
     );
@@ -470,102 +522,50 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
           ],
         ),
         const SizedBox(height: 16),
-        Stack(
-          children: [
-            if (recentSubmissions.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(48.0),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+        if (recentSubmissions.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(48.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
                 ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.inbox_outlined,
-                      size: 72,
-                      color: Colors.grey.shade300,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      localeProvider.isHindi
-                          ? 'कोई सबमिशन नहीं'
-                          : 'No submissions yet',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade500,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+              ],
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.inbox_outlined,
+                  size: 72,
+                  color: Colors.grey.shade300,
                 ),
-              )
-            else
-              ...recentSubmissions.map((event) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
-                    child: SubmissionCard(
-                      event: event,
-                      localeProvider: localeProvider,
-                    ),
-                  )),
-            // Floating Action Button
-            Positioned(
-              bottom: 16,
-              right: 16,
-              child: Material(
-                elevation: 8,
-                borderRadius: BorderRadius.circular(30),
-                shadowColor: const Color(0xFF2D5F3F).withOpacity(0.4),
-                child: InkWell(
-                  onTap: () {
-                    Navigator.of(context).pushNamed(AppRouter.newCollection);
-                  },
-                  borderRadius: BorderRadius.circular(30),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF2D5F3F), Color(0xFF3D7F5F)],
-                      ),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.add_circle_outline,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          localeProvider.translate('new_collection'),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
+                const SizedBox(height: 16),
+                Text(
+                  localeProvider.isHindi
+                      ? 'कोई सबमिशन नहीं'
+                      : 'No submissions yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          )
+        else
+          ...recentSubmissions.map((event) => Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: SubmissionCard(
+                  event: event,
+                  localeProvider: localeProvider,
+                ),
+              )),
       ],
     );
   }
