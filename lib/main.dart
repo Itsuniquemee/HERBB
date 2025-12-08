@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'dart:io';
 
+import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/storage_service.dart';
 import 'core/services/sync_service.dart';
@@ -35,9 +36,64 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  runApp(const HerbalTraceApp());
+  // Check developer mode before running app
+  bool devModeEnabled = await DeveloperModeUtils.isDeveloperModeOn();
+  if (devModeEnabled) {
+    runApp(const DeveloperModeBlockedApp());
+  } else {
+    runApp(const HerbalTraceApp());
+  }
 }
 
+// ------------------- Developer Mode Utils -------------------
+class DeveloperModeUtils {
+  static const MethodChannel _channel = MethodChannel('com.herbaltrace.dev_mode_check');
+
+  static Future<bool> isDeveloperModeOn() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final bool result = await _channel.invokeMethod('isDeveloperModeOn');
+      return result;
+    } catch (e) {
+      return false;
+    }
+  }
+}
+
+// ------------------- Developer Mode Blocked App -------------------
+class DeveloperModeBlockedApp extends StatelessWidget {
+  const DeveloperModeBlockedApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'HerbalTrace',
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.block, size: 80, color: Colors.red),
+                SizedBox(height: 24),
+                Text(
+                  'Developer Mode is enabled.\nThe app cannot run.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ------------------- Main App -------------------
 class HerbalTraceApp extends StatelessWidget {
   const HerbalTraceApp({super.key});
 
