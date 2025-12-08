@@ -50,7 +50,7 @@ class DeveloperModeUtils {
   static const MethodChannel _channel = MethodChannel('com.herbaltrace.dev_mode_check');
 
   static Future<bool> isDeveloperModeOn() async {
-    if (!Platform.isAndroid) return false;
+    if (Platform.isAndroid) return false;
     try {
       final bool result = await _channel.invokeMethod('isDeveloperModeOn');
       return result;

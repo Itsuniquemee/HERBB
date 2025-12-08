@@ -19,6 +19,8 @@ class FarmerDashboard extends StatefulWidget {
 
 class _FarmerDashboardState extends State<FarmerDashboard> {
   int _selectedIndex = 0;
+  bool _toggleNewCollection = false;
+
 
   @override
   void initState() {
@@ -78,6 +80,11 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
                           
                           // Welcome Card
                           _buildWelcomeCard(authProvider, localeProvider),
+
+                          const SizedBox(height: 24),
+                          // _buildFriendCard(authProvider, localeProvider),
+                          _buildFriendCard(authProvider, localeProvider, context),
+
 
                           const SizedBox(height: 24),
 
@@ -152,6 +159,31 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
               ),
             ),
             const Spacer(),
+
+
+
+
+            // Switch(
+            //   value: _toggleNewCollection,
+            //   activeColor: Colors.white,
+            //   onChanged: (value) {
+            //     setState(() {
+            //       _toggleNewCollection = value;
+            //     });
+            //
+            //     if (value) {
+            //       Navigator.of(context).pushNamed(AppRouter.newCollection).then((_) {
+            //         setState(() {
+            //           _toggleNewCollection = false; // Reset toggle after return
+            //         });
+            //       });
+            //     }
+            //   },
+            // ),
+
+
+
+
             Container(
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
@@ -291,6 +323,58 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
       ),
     );
   }
+
+
+  Widget _buildFriendCard(
+      AuthProvider authProvider, LocaleProvider localeProvider, BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).pushNamed(AppRouter.farmerfreind);
+        },
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          padding: const EdgeInsets.all(24.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+
+          // Only a text in the center
+          child: Center(
+            child: Text(
+              localeProvider.isHindi ? "किसान मित्र" : "Farmer Friend",
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2D5F3F),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
+
+
+
+
+
+
+
+
+
+
 
   Widget _buildStatsSection(
       Map<String, dynamic> stats, LocaleProvider localeProvider) {
@@ -570,62 +654,142 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
     );
   }
 
+
   Widget _buildBottomNav(LocaleProvider localeProvider) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
+    double width = MediaQuery.of(context).size.width;
+
+    return SizedBox(
+      height: 70,
+      width: width,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Bottom bar background
+          Container(
+            height: 70,
+            width: width,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, -2),
+                )
+              ],
+            ),
+            child: SafeArea(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // LEFT SECTION (2 items)
+                  Row(
+                    children: [
+                      _buildNavItem(
+                        icon: Icons.dashboard_rounded,
+                        label: localeProvider.translate('dashboard'),
+                        isSelected: _selectedIndex == 0,
+                        onTap: () => setState(() => _selectedIndex = 0),
+                      ),
+                      _buildNavItem(
+                        icon: Icons.list_alt_rounded,
+                        label: localeProvider.translate('submissions'),
+                        isSelected: _selectedIndex == 1,
+                        onTap: () {
+                          setState(() => _selectedIndex = 1);
+                          Navigator.pushNamed(
+                              context, AppRouter.submissionHistory);
+                        },
+                      ),
+                    ],
+                  ),
+
+                  // RIGHT SECTION (2 items)
+                  Row(
+                    children: [
+                      _buildNavItem(
+                        icon: Icons.person_rounded,
+                        label: localeProvider.translate('profile'),
+                        isSelected: _selectedIndex == 3,
+                        onTap: () {
+                          setState(() => _selectedIndex = 3);
+                          Navigator.pushNamed(
+                              context, AppRouter.farmerProfile);
+                        },
+                      ),
+                      _buildNavItem(
+                        icon: Icons.report_problem_rounded,
+                        label: localeProvider.translate('Complaint'),
+                        isSelected: _selectedIndex == 4,
+                        onTap: () {
+                          setState(() => _selectedIndex = 4);
+                          Navigator.pushNamed(
+                              context, AppRouter.registercomplaint);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
+
+          // Floating CENTER BUTTON (Always Centered)
+          // Floating CENTER BUTTON (Always Centered)
+          Positioned(
+            top: -28,
+            left: 20,
+            right: 0,
+            child: Center(
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => _selectedIndex = 2);
+                  Navigator.pushNamed(context, AppRouter.newCollection);
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryGreen,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      )
+                    ],
+                  ),
+                  child: const Icon(Icons.add, size: 34, color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+
+// Floating Button Label (Exactly under Button)
+          Positioned(
+            top: 46,  // sits just under the button
+            left: 20,
+            right: 0,
+            child: Center(
+              child: Text(
+                // localeProvider.translate('New Collection'),
+                localeProvider.isHindi ? "नया संग्रह" : "New Collection",
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: _selectedIndex == 2
+                      ? AppTheme.primaryGreen
+                      : Colors.grey[600],
+                ),
+              ),
+            ),
+          ),
+
         ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                icon: Icons.dashboard_rounded,
-                label: localeProvider.translate('dashboard'),
-                isSelected: _selectedIndex == 0,
-                onTap: () {
-                  setState(() {
-                    _selectedIndex = 0;
-                  });
-                },
-              ),
-              _buildNavItem(
-                icon: Icons.list_alt_rounded,
-                label: localeProvider.translate('submissions'),
-                isSelected: _selectedIndex == 1,
-                onTap: () {
-                  setState(() {
-                    _selectedIndex = 1;
-                  });
-                  Navigator.of(context).pushNamed(AppRouter.submissionHistory);
-                },
-              ),
-              _buildNavItem(
-                icon: Icons.person_rounded,
-                label: localeProvider.translate('profile'),
-                isSelected: _selectedIndex == 2,
-                onTap: () {
-                  setState(() {
-                    _selectedIndex = 2;
-                  });
-                  Navigator.of(context).pushNamed(AppRouter.farmerProfile);
-                },
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
+
 
   Widget _buildNavItem({
     required IconData icon,
@@ -637,7 +801,8 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        constraints: const BoxConstraints(minWidth: 60),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
               ? const Color(0xFF2D5F3F).withOpacity(0.1)
@@ -654,16 +819,16 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
                   ? const Color(0xFF2D5F3F)
                   : Colors.grey.shade500,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               label,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10.5,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 color: isSelected
                     ? const Color(0xFF2D5F3F)
                     : Colors.grey.shade600,
-                letterSpacing: 0.3,
               ),
             ),
           ],
@@ -671,4 +836,5 @@ class _FarmerDashboardState extends State<FarmerDashboard> {
       ),
     );
   }
+
 }
