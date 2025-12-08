@@ -7,6 +7,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_recognition_result.dart' as stt;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:http/http.dart' as http;
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:hive/hive.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/locale_provider.dart';
@@ -53,11 +56,46 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
     'Amla',
   ];
 
+  late Box _offlineQueueBox;
+  late Box _cacheBox;
+
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
+    _initHive();
     _getCurrentLocation();
+    _listenConnectivity();
+  }
+
+  Future<void> _initHive() async {
+    final appDocDir = await getApplicationDocumentsDirectory();
+    Hive.init(appDocDir.path);
+    _offlineQueueBox = await Hive.openBox('offlineQueue');
+    _cacheBox = await Hive.openBox('cache');
+    _loadCachedData();
+    _sendQueuedSubmissions();
+  }
+
+  void _listenConnectivity() {
+    Connectivity().onConnectivityChanged.listen((status) {
+      if (status != ConnectivityResult.none) {
+        _sendQueuedSubmissions();
+      }
+    });
+  }
+
+  void _loadCachedData() {
+    if (_cacheBox.containsKey('location')) {
+      final loc = _cacheBox.get('location');
+      _latitude = loc['latitude'];
+      _longitude = loc['longitude'];
+    }
+    if (_cacheBox.containsKey('weather')) {
+      final weather = _cacheBox.get('weather');
+      _temperature = weather['temperature'];
+      _humidity = weather['humidity'];
+    }
   }
 
   @override
@@ -83,11 +121,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
         setState(() {
           controller.text = result.recognizedWords;
         });
-
-        // Stop automatically when final result is received
-        if (result.finalResult) {
-          _stopListening();
-        }
+        if (result.finalResult) _stopListening();
       },
       listenMode: stt.ListenMode.dictation,
       partialResults: true,
@@ -104,16 +138,6 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
     });
   }
 
-
-  // void _stopListening() {
-  //   _speech.stop();
-  //   setState(() {
-  //     _isListeningSpecies = false;
-  //     _isListeningWeight = false;
-  //     _isListeningMoisture = false;
-  //   });
-  // }
-
   Future<void> _getCurrentLocation() async {
     setState(() {
       _isLoadingLocation = true;
@@ -127,6 +151,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
         _latitude = position.latitude;
         _longitude = position.longitude;
       });
+      _cacheBox.put('location', {'latitude': _latitude, 'longitude': _longitude});
       await _getWeatherData();
     }
 
@@ -142,18 +167,21 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
       _isLoadingWeather = true;
     });
 
-    final weatherService = WeatherService();
-    final weatherData = await weatherService.getWeatherDataFree(
-      latitude: _latitude!,
-      longitude: _longitude!,
-    );
+    try {
+      final weatherService = WeatherService();
+      final weatherData = await weatherService.getWeatherDataFree(
+        latitude: _latitude!,
+        longitude: _longitude!,
+      );
 
-    if (weatherData != null) {
-      setState(() {
-        _temperature = weatherData['temperature'];
-        _humidity = weatherData['humidity'];
-      });
-    }
+      if (weatherData != null) {
+        setState(() {
+          _temperature = weatherData['temperature'];
+          _humidity = weatherData['humidity'];
+        });
+        _cacheBox.put('weather', {'temperature': _temperature, 'humidity': _humidity});
+      }
+    } catch (_) {}
 
     setState(() {
       _isLoadingWeather = false;
@@ -191,6 +219,47 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
     }
   }
 
+  Future<void> _sendQueuedSubmissions() async {
+    if (_offlineQueueBox.isEmpty) return;
+
+    final authProvider = context.read<AuthProvider>();
+    final collectionProvider = context.read<CollectionProvider>();
+
+    final List keys = _offlineQueueBox.keys.toList();
+    for (var key in keys) {
+      final payload = Map<String, dynamic>.from(_offlineQueueBox.get(key));
+      try {
+        final response = await http.post(
+          Uri.parse('https://herbal-trace-production.up.railway.app/api/v1/collections'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MTQzMDA0LCJleHAiOjE3NjUyMjk0MDR9.O_shrDHZfmHVj4r5SDU5LMN0vXnHdSia4viUdeA2GXY',
+          },
+          body: jsonEncode(payload),
+        );
+
+        final decoded = jsonDecode(response.body);
+        if ((response.statusCode == 200 || response.statusCode == 201) &&
+            decoded['success'] == true) {
+          await collectionProvider.createCollectionEvent(
+            farmerId: authProvider.currentUser!.id,
+            species: payload['species'],
+            latitude: double.parse(payload['latitude']),
+            longitude: double.parse(payload['longitude']),
+            imagePaths: List<String>.from(payload['imagePaths'] ?? []),
+            weight: double.tryParse(payload['quantity'].toString()),
+            moisture: double.tryParse(payload['moisture']?.toString() ?? '0'),
+            temperature: payload['temperature'],
+            humidity: payload['humidity'],
+          );
+          _offlineQueueBox.delete(key);
+        }
+      } catch (_) {
+        // Leave in queue, retry later
+      }
+    }
+  }
+
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -213,60 +282,64 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
     final authProvider = context.read<AuthProvider>();
     final collectionProvider = context.read<CollectionProvider>();
 
+    final payload = {
+      "species": _speciesController.text,
+      "quantity": double.tryParse(_weightController.text) ?? 0,
+      "unit": "kg",
+      "harvestDate": DateTime.now().toIso8601String().split('T')[0],
+      "latitude": _latitude!.toString(),
+      "longitude": _longitude!.toString(),
+      "location":
+      "Lat: ${_latitude!.toStringAsFixed(6)}, Lon: ${_longitude!.toStringAsFixed(6)}",
+      "imagePaths": _images.map((f) => f.path).toList(),
+      "temperature": _temperature,
+      "humidity": _humidity,
+      "moisture": double.tryParse(_moistureController.text),
+    };
+
     try {
-      final payload = {
-        "species": _speciesController.text,
-        "quantity": double.tryParse(_weightController.text) ?? 0,
-        "unit": "kg",
-        "harvestDate": DateTime.now().toIso8601String().split('T')[0],
-        "latitude": _latitude!.toString(),
-        "longitude": _longitude!.toString(),
-        "location":
-        "Lat: ${_latitude!.toStringAsFixed(6)}, Lon: ${_longitude!.toStringAsFixed(6)}"
-      };
-
-      final response = await http.post(
-        Uri.parse(
-            'https://herbal-trace-production.up.railway.app/api/v1/collections'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MTQzMDA0LCJleHAiOjE3NjUyMjk0MDR9.O_shrDHZfmHVj4r5SDU5LMN0vXnHdSia4viUdeA2GXY',
-        },
-        body: jsonEncode(payload),
-      );
-
-      final decoded = jsonDecode(response.body);
-      print('Response Body: ${response.body}');
-
-      if ((response.statusCode == 200 || response.statusCode == 201) &&
-          decoded['success'] == true) {
-        await collectionProvider.createCollectionEvent(
-          farmerId: authProvider.currentUser!.id,
-          species: _speciesController.text,
-          latitude: _latitude!,
-          longitude: _longitude!,
-          imagePaths: _images.map((f) => f.path).toList(),
-          weight: double.tryParse(_weightController.text),
-          moisture: double.tryParse(_moistureController.text),
-          temperature: _temperature,
-          humidity: _humidity,
-        );
-
-        final eventId = decoded['data']?['id'] ?? 'success';
-        if (!mounted) return;
-        _showSuccessDialog(eventId);
-      } else {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity == ConnectivityResult.none) {
+        await _offlineQueueBox.add(payload);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  'Submission failed: ${response.statusCode} ${response.reasonPhrase}')),
+          const SnackBar(content: Text('No internet. Submission queued!')),
         );
+        _showSuccessDialog('queued');
+      } else {
+        final response = await http.post(
+          Uri.parse('https://herbal-trace-production.up.railway.app/api/v1/collections'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MTQzMDA0LCJleHAiOjE3NjUyMjk0MDR9.O_shrDHZfmHVj4r5SDU5LMN0vXnHdSia4viUdeA2GXY',
+          },
+          body: jsonEncode(payload),
+        );
+
+        final decoded = jsonDecode(response.body);
+        if ((response.statusCode == 200 || response.statusCode == 201) &&
+            decoded['success'] == true) {
+          await collectionProvider.createCollectionEvent(
+            farmerId: authProvider.currentUser!.id,
+            species: _speciesController.text,
+            latitude: _latitude!,
+            longitude: _longitude!,
+            imagePaths: _images.map((f) => f.path).toList(),
+            weight: double.tryParse(_weightController.text),
+            moisture: double.tryParse(_moistureController.text),
+            temperature: _temperature,
+            humidity: _humidity,
+          );
+          _showSuccessDialog(decoded['data']?['id'] ?? 'success');
+        } else {
+          throw Exception('API Error: ${response.statusCode}');
+        }
       }
     } catch (e) {
-      if (!mounted) return;
+      await _offlineQueueBox.add(payload);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error),
+        const SnackBar(content: Text('Submission failed. Saved offline.')),
       );
+      _showSuccessDialog('queued');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -287,24 +360,15 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                 color: AppTheme.success.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.check_circle,
-                size: 64,
-                color: AppTheme.success,
-              ),
+              child: const Icon(Icons.check_circle, size: 64, color: AppTheme.success),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Submission Successful!',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            Text(
+              eventId == 'queued' ? 'Saved Offline!' : 'Submission Successful!',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
-            Text(
-              'Event ID: ${eventId.substring(0, 8)}',
-              style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 8),
             if (_latitude != null && _longitude != null)
               Text(
                 'Location: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}',
@@ -325,10 +389,13 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
     );
   }
 
+  // --- UI widgets (camera section, location card, autocomplete fields, etc.) ---
+  // Copy existing _buildLocationCard(), _buildCameraSection(), and Form fields
+  // from your original code above without changes.
+
   @override
   Widget build(BuildContext context) {
     final localeProvider = context.watch<LocaleProvider>();
-
     return Scaffold(
       appBar: AppBar(
         title: Text(localeProvider.translate('new_collection')),
@@ -345,7 +412,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
               _buildCameraSection(localeProvider),
               const SizedBox(height: 20),
 
-              // SPECIES WITH VOICE
+              // Autocomplete species
               Autocomplete<String>(
                 optionsBuilder: (textEditingValue) {
                   if (textEditingValue.text.isEmpty) return _herbSpecies;
@@ -373,7 +440,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
 
               const SizedBox(height: 16),
 
-              // WEIGHT WITH VOICE
+              // Weight
               TextFormField(
                 controller: _weightController,
                 keyboardType: TextInputType.number,
@@ -384,11 +451,8 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                   suffixIcon: IconButton(
                     icon: Icon(_isListeningWeight ? Icons.mic : Icons.mic_none),
                     onPressed: () {
-                      if (_isListeningWeight) {
-                        _stopListening();
-                      } else {
-                        _startListening(_weightController, 'weight');
-                      }
+                      if (_isListeningWeight) _stopListening();
+                      else _startListening(_weightController, 'weight');
                     },
                   ),
                 ),
@@ -396,7 +460,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
 
               const SizedBox(height: 16),
 
-              // MOISTURE WITH VOICE
+              // Moisture
               TextFormField(
                 controller: _moistureController,
                 keyboardType: TextInputType.number,
@@ -407,11 +471,8 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                   suffixIcon: IconButton(
                     icon: Icon(_isListeningMoisture ? Icons.mic : Icons.mic_none),
                     onPressed: () {
-                      if (_isListeningMoisture) {
-                        _stopListening();
-                      } else {
-                        _startListening(_moistureController, 'moisture');
-                      }
+                      if (_isListeningMoisture) _stopListening();
+                      else _startListening(_moistureController, 'moisture');
                     },
                   ),
                 ),
@@ -419,7 +480,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
 
               const SizedBox(height: 16),
 
-              // WEATHER SECTION
+              // Weather info
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -482,10 +543,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                         localeProvider.isHindi
                             ? 'मौसम डेटा उपलब्ध नहीं है'
                             : 'Weather data not available',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                     ],
                   ],
@@ -520,7 +578,11 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
     );
   }
 
+// Copy your original _buildLocationCard() and _buildCameraSection() functions here
+
   Widget _buildLocationCard(LocaleProvider localeProvider) {
+    bool hasLocation = _latitude != null && _longitude != null;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -541,7 +603,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            if (_latitude != null && _longitude != null)
+            if (hasLocation)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -556,8 +618,20 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Location Captured', style: TextStyle(fontWeight: FontWeight.w500, color: AppTheme.success)),
-                          Text('${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                          Text(
+                            _isLoadingLocation ? 'Acquiring...' : 'Location Captured',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w500, color: AppTheme.success),
+                          ),
+                          Text(
+                            '${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}',
+                            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                          ),
+                          // if (_cacheBox.containsKey('location'))
+                          //   Text(
+                          //     '(Using cached location)',
+                          //     style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          //   ),
                         ],
                       ),
                     ),
@@ -571,8 +645,8 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                   color: AppTheme.warning.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Row(
-                  children: [
+                child: Row(
+                  children: const [
                     Icon(Icons.location_off, color: AppTheme.warning),
                     SizedBox(width: 12),
                     Expanded(child: Text('Acquiring GPS location...', style: TextStyle(color: AppTheme.warning))),
@@ -655,6 +729,12 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
               icon: const Icon(Icons.camera_alt),
               label: Text(localeProvider.translate('capture_image')),
             ),
+            const SizedBox(height: 4),
+            // if (_images.isEmpty)
+            //   Text(
+            //     'You can capture up to 3 images. Images are stored offline if internet is not available.',
+            //     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            //   ),
           ],
         ),
       ),
