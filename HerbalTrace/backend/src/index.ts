@@ -160,7 +160,7 @@ const startServer = async () => {
     // Initialize database schema
     logger.info('Initializing database schema...');
     const { initializeDatabase } = await import('./config/database');
-    initializeDatabase();
+    await initializeDatabase();
     
     // Test database connection
     logger.info('Testing database connection...');
