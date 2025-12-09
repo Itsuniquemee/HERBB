@@ -95,9 +95,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () => Navigator.of(context).pop(),
+                  Semantics(
+                    label: localeProvider.translate('a11y_nav_back'),
+                    button: true,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
                   ),
                   Expanded(
                     child: Text(
@@ -109,9 +113,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.flash_on, color: Colors.white),
-                    onPressed: () => controller.toggleTorch(),
+                  Semantics(
+                    label: localeProvider.translate('a11y_flash_on'),
+                    button: true,
+                    child: IconButton(
+                      icon: const Icon(Icons.flash_on, color: Colors.white),
+                      onPressed: () => controller.toggleTorch(),
+                    ),
                   ),
                 ],
               ),

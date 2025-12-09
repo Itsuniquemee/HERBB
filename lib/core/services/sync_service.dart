@@ -6,7 +6,9 @@ import '../models/collection_event.dart';
 import 'storage_service.dart';
 
 class SyncService {
-  static const String apiBaseUrl = 'https://api.herbaltrace.example.com';
+  static const String apiBaseUrl = 'https://herbal-trace-production.up.railway.app';
+  static const String bearerToken = 
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MjM1MDU2LCJleHAiOjE3NjUzMjE0NTZ9.obOcf9rK86hhrf4Xqq_4MvKoM20qKICNI6TXfblsKwU';
 
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
@@ -81,14 +83,13 @@ class SyncService {
     try {
       final apiUrl =
           StorageService.getSetting('apiBaseUrl', defaultValue: apiBaseUrl);
-      final token = StorageService.getUserData('authToken');
 
       final response = await http
           .post(
-            Uri.parse('$apiUrl/api/collection-events'),
+            Uri.parse('$apiUrl/api/v1/collections'),
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
+              'Authorization': 'Bearer $bearerToken',
             },
             body: json.encode(event.toJson()),
           )
@@ -113,7 +114,6 @@ class SyncService {
     try {
       final apiUrl =
           StorageService.getSetting('apiBaseUrl', defaultValue: apiBaseUrl);
-      final token = StorageService.getUserData('authToken');
 
       // Check cache first
       final cached = StorageService.getCachedData(
@@ -126,9 +126,10 @@ class SyncService {
       }
 
       final response = await http.get(
-        Uri.parse('$apiUrl/api/provenance/$batchId'),
+        Uri.parse('$apiUrl/api/v1/provenance/$batchId'),
         headers: {
-          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $bearerToken',
         },
       ).timeout(const Duration(seconds: 30));
 
@@ -155,14 +156,13 @@ class SyncService {
     try {
       final apiUrl =
           StorageService.getSetting('apiBaseUrl', defaultValue: apiBaseUrl);
-      final token = StorageService.getUserData('authToken');
 
       await http
           .post(
-            Uri.parse('$apiUrl/api/scans'),
+            Uri.parse('$apiUrl/api/v1/scans'),
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
+              'Authorization': 'Bearer $bearerToken',
             },
             body: json.encode({
               'batchId': batchId,

@@ -42,6 +42,17 @@ class CollectionProvider extends ChangeNotifier {
     double? moisture,
     double? temperature,
     double? humidity,
+    String? weatherCondition,
+    String? commonName,
+    String? scientificName,
+    String? harvestMethod,
+    String? partCollected,
+    double? altitude,
+    double? latitudeAccuracy,
+    double? longitudeAccuracy,
+    String? locationName,
+    String? soilType,
+    String? notes,
   }) async {
     final event = CollectionEvent(
       id: const Uuid().v4(),
@@ -54,8 +65,19 @@ class CollectionProvider extends ChangeNotifier {
       moisture: moisture,
       temperature: temperature,
       humidity: humidity,
+      weatherCondition: weatherCondition,
       timestamp: DateTime.now(),
       isSynced: false,
+      commonName: commonName,
+      scientificName: scientificName,
+      harvestMethod: harvestMethod,
+      partCollected: partCollected,
+      altitude: altitude,
+      latitudeAccuracy: latitudeAccuracy,
+      longitudeAccuracy: longitudeAccuracy,
+      locationName: locationName,
+      soilType: soilType,
+      notes: notes,
     );
 
     await StorageService.saveCollectionEvent(event);

@@ -14,6 +14,7 @@ class AuthProvider extends ChangeNotifier {
   String? _verificationId;
   int? _resendToken;
   firebase_auth.PhoneAuthCredential? _verifiedPhoneCredential;
+  bool _isInitialized = false;
 
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
@@ -22,18 +23,79 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider() {
     _initAuthListener();
+    _setPersistence();
+  }
+
+  Future<void> _setPersistence() async {
+    try {
+      // Set Firebase Auth persistence to LOCAL to maintain session
+      await _firebaseAuth.setPersistence(firebase_auth.Persistence.LOCAL);
+      print('DEBUG: Firebase Auth persistence set to LOCAL');
+    } catch (e) {
+      print('DEBUG: Error setting persistence: $e');
+    }
   }
 
   void _initAuthListener() {
     _firebaseAuth.authStateChanges().listen((firebase_auth.User? firebaseUser) async {
+      print('DEBUG: Auth state changed - User: ${firebaseUser?.uid}, Initialized: $_isInitialized');
+      
+      // Check if user was actively using camera - if so, don't logout
+      final cameraActive = await StorageService.getData('camera_active');
+      if (cameraActive == 'true') {
+        final timestampStr = await StorageService.getData('camera_timestamp');
+        if (timestampStr != null) {
+          final timestamp = int.tryParse(timestampStr) ?? 0;
+          final elapsed = DateTime.now().millisecondsSinceEpoch - timestamp;
+          if (elapsed < 300000) { // 5 minutes
+            print('DEBUG: Camera is active, preserving session (${elapsed}ms ago)');
+            if (firebaseUser == null) {
+              // Restore user from storage instead of logging out
+              await _loadStoredUser();
+              return;
+            }
+          } else {
+            print('DEBUG: Camera timestamp expired, clearing flag');
+            await StorageService.removeData('camera_active');
+            await StorageService.removeData('camera_timestamp');
+          }
+        }
+      }
+      
       if (firebaseUser != null) {
         await _loadUserFromFirestore(firebaseUser.uid);
       } else {
-        _currentUser = null;
-        _isAuthenticated = false;
-        notifyListeners();
+        // Only logout if we've already initialized (prevents logout on app resume)
+        if (_isInitialized) {
+          print('DEBUG: Auth state null after initialization - logging out');
+          _currentUser = null;
+          _isAuthenticated = false;
+          notifyListeners();
+        } else {
+          print('DEBUG: Auth state null during initialization - checking stored user');
+          // Try to load from stored data
+          await _loadStoredUser();
+        }
+      }
+      
+      if (!_isInitialized) {
+        _isInitialized = true;
       }
     });
+  }
+
+  Future<void> _loadStoredUser() async {
+    try {
+      final userData = await StorageService.getUserData('currentUser');
+      if (userData != null) {
+        _currentUser = User.fromJson(userData);
+        _isAuthenticated = true;
+        print('DEBUG: Loaded user from storage: ${_currentUser?.id}');
+        notifyListeners();
+      }
+    } catch (e) {
+      print('DEBUG: Error loading stored user: $e');
+    }
   }
 
   Future<void> _loadUserFromFirestore(String uid) async {

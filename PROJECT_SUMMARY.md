@@ -1,4 +1,4 @@
-# 🌿 HerbalTrace - Project Summary
+-# 🌿 HerbalTrace - Project Summary
 
 ## What We've Built
 

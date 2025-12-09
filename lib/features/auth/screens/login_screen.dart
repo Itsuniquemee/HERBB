@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/locale_provider.dart';
+import '../../../core/providers/theme_provider.dart';
 import '../../../core/routes/app_router.dart';
 import '../../../core/models/user.dart';
 import '../providers/auth_provider.dart';
@@ -75,6 +76,7 @@ class _LoginScreenState extends State<LoginScreen>
   Widget build(BuildContext context) {
     final localeProvider = context.watch<LocaleProvider>();
     final authProvider = context.watch<AuthProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
 
     return Scaffold(
       body: Container(
@@ -82,10 +84,15 @@ class _LoginScreenState extends State<LoginScreen>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF2D5F3F),
-              const Color(0xFFF5F5DC),
-            ],
+            colors: themeProvider.isDarkMode
+                ? [
+                    const Color(0xFF1A1A1A),
+                    const Color(0xFF2D2D2D),
+                  ]
+                : [
+                    const Color(0xFF2D5F3F),
+                    const Color(0xFFF5F5DC),
+                  ],
             stops: const [0.0, 0.3],
           ),
         ),
@@ -94,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen>
             image: DecorationImage(
               image: AssetImage('assets/images/leaf_pattern.png'),
               repeat: ImageRepeat.repeat,
-              opacity: 0.1,
+              opacity: themeProvider.isDarkMode ? 0.05 : 0.1,
               alignment: Alignment.topCenter,
             ),
           ),
@@ -114,11 +121,13 @@ class _LoginScreenState extends State<LoginScreen>
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 24),
                     decoration: BoxDecoration(
-                      color: const Color.fromARGB(255, 255, 255, 255),
+                      color: themeProvider.isDarkMode
+                          ? const Color(0xFF2D2D2D)
+                          : const Color.fromARGB(255, 255, 255, 255),
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
+                          color: Colors.black.withOpacity(themeProvider.isDarkMode ? 0.3 : 0.08),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -132,7 +141,9 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                       indicatorSize: TabBarIndicatorSize.tab,
                       labelColor: Colors.white,
-                      unselectedLabelColor: Colors.grey.shade700,
+                      unselectedLabelColor: themeProvider.isDarkMode
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade700,
                       dividerColor: Colors.transparent,
                   tabs: [
                     Tab(
@@ -218,17 +229,23 @@ class _LoginScreenState extends State<LoginScreen>
               decoration: InputDecoration(
                 labelText: localeProvider.translate('password'),
                 prefixIcon: const Icon(Icons.lock_outline),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
+                suffixIcon: Semantics(
+                  label: _obscurePassword
+                      ? localeProvider.translate('a11y_password_show')
+                      : localeProvider.translate('a11y_password_hide'),
+                  button: true,
+                  child: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    });
-                  },
                 ),
               ),
               validator: (value) {
@@ -752,7 +769,11 @@ class _RoleSelectionDialogState extends State<_RoleSelectionDialog> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: isSelected ? AppTheme.primaryGreen : Colors.black87,
+                  color: isSelected
+                      ? AppTheme.primaryGreen
+                      : (context.watch<ThemeProvider>().isDarkMode
+                          ? Colors.white
+                          : Colors.black87),
                 ),
               ),
             ),

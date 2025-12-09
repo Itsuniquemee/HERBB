@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../../core/theme/app_theme.dart';
+import '../../../core/providers/locale_provider.dart';
 
 class ComplainPage extends StatefulWidget {
   const ComplainPage({super.key});
@@ -12,8 +14,6 @@ class ComplainPage extends StatefulWidget {
 class _ComplainPageState extends State<ComplainPage> {
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
   final TextEditingController subjectController = TextEditingController();
   final TextEditingController messageController = TextEditingController();
 
@@ -30,13 +30,15 @@ class _ComplainPageState extends State<ComplainPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localeProvider = context.watch<LocaleProvider>();
+    
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppTheme.primaryGreen,
         elevation: 0,
-        title: const Text(
-          "Submit Complaint",
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          localeProvider.isHindi ? "शिकायत दर्ज करें" : "Submit Complaint",
+          style: const TextStyle(color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -48,9 +50,9 @@ class _ComplainPageState extends State<ComplainPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "We’re here to help!",
-                  style: TextStyle(
+                Text(
+                  localeProvider.isHindi ? "हम आपकी मदद के लिए यहां हैं!" : "We're here to help!",
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.primaryGreen,
@@ -58,22 +60,20 @@ class _ComplainPageState extends State<ComplainPage> {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  "Please submit your complaint below.",
+                  localeProvider.isHindi ? "कृपया नीचे अपनी शिकायत दर्ज करें।" : "Please submit your complaint below.",
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey[700],
                   ),
                 ),
                 const SizedBox(height: 20),
-                _buildInput("Full Name", nameController),
-                _buildInput("Email Address", emailController),
-                _buildInput("Subject", subjectController),
+                _buildInput(localeProvider.isHindi ? "विषय" : "Subject", subjectController, localeProvider),
 
                 /// Complaint Type Dropdown
                 const SizedBox(height: 15),
-                const Text(
-                  "Complaint Type",
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                Text(
+                  localeProvider.isHindi ? "शिकायत का प्रकार" : "Complaint Type",
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -85,14 +85,11 @@ class _ComplainPageState extends State<ComplainPage> {
                     value: _selectedType,
                     isExpanded: true,
                     underline: const SizedBox(),
-                    hint: const Text("Select Complaint Type"),
-                    items: [
-                      "Product Issue",
-                      "Farmer Issue",
-                      "Delivery Issue",
-                      "App Issue",
-                      "Other"
-                    ].map((e) {
+                    hint: Text(localeProvider.isHindi ? "शिकायत का प्रकार चुनें" : "Select Complaint Type"),
+                    items: (localeProvider.isHindi 
+                      ? ["उत्पाद समस्या", "किसान समस्या", "वितरण समस्या", "ऐप समस्या", "अन्य"]
+                      : ["Product Issue", "Farmer Issue", "Delivery Issue", "App Issue", "Other"]
+                    ).map((e) {
                       return DropdownMenuItem(
                         value: e,
                         child: Text(e),
@@ -108,9 +105,9 @@ class _ComplainPageState extends State<ComplainPage> {
 
                 /// Complaint Message with Speech-to-Text
                 const SizedBox(height: 15),
-                const Text(
-                  "Complaint Description",
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                Text(
+                  localeProvider.isHindi ? "शिकायत विवरण" : "Complaint Description",
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 5),
                 Stack(
@@ -119,14 +116,14 @@ class _ComplainPageState extends State<ComplainPage> {
                       controller: messageController,
                       maxLines: 5,
                       decoration: InputDecoration(
-                        hintText: "Describe your complaint in detail",
+                        hintText: localeProvider.isHindi ? "अपनी शिकायत विस्तार से बताएं" : "Describe your complaint in detail",
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return "Description is required";
+                          return localeProvider.isHindi ? "विवरण आवश्यक है" : "Description is required";
                         }
                         return null;
                       },
@@ -136,13 +133,13 @@ class _ComplainPageState extends State<ComplainPage> {
                       bottom: 8,
                       child: CircleAvatar(
                         radius: 20,
-                        backgroundColor: AppTheme.primaryGreen,
+                        backgroundColor: _isListening ? Colors.red : AppTheme.primaryGreen,
                         child: IconButton(
                           icon: Icon(
                             _isListening ? Icons.mic : Icons.mic_none,
                             color: Colors.white,
                           ),
-                          onPressed: _listen,
+                          onPressed: () => _listen(localeProvider),
                         ),
                       ),
                     ),
@@ -167,13 +164,12 @@ class _ComplainPageState extends State<ComplainPage> {
                     ),
                     onPressed: () {
                       if (_formKey.currentState!.validate()) {
-                        _showSuccessDialog();
+                        _showSuccessDialog(localeProvider);
                       }
                     },
-                    child: const Text(
-                      "Submit Complaint",
-                      style:
-                      TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    child: Text(
+                      localeProvider.isHindi ? "शिकायत दर्ज करें" : "Submit Complaint",
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
                 )
@@ -186,7 +182,7 @@ class _ComplainPageState extends State<ComplainPage> {
   }
 
   /// Reusable input method
-  Widget _buildInput(String label, TextEditingController controller) {
+  Widget _buildInput(String label, TextEditingController controller, LocaleProvider localeProvider) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -209,7 +205,7 @@ class _ComplainPageState extends State<ComplainPage> {
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return "$label is required";
+              return localeProvider.isHindi ? "$label आवश्यक है" : "$label is required";
             }
             return null;
           },
@@ -218,8 +214,8 @@ class _ComplainPageState extends State<ComplainPage> {
     );
   }
 
-  /// Speech-to-Text function
-  void _listen() async {
+  /// Speech-to-Text function with locale support
+  void _listen(LocaleProvider localeProvider) async {
     if (!_isListening) {
       bool available = await _speech.initialize(
         onStatus: (val) => print('onStatus: $val'),
@@ -227,12 +223,20 @@ class _ComplainPageState extends State<ComplainPage> {
       );
       if (available) {
         setState(() => _isListening = true);
+        
+        // Use Hindi locale if app is in Hindi mode, otherwise English
+        String localeId = localeProvider.isHindi ? 'hi_IN' : 'en_US';
+        
         _speech.listen(
           onResult: (val) {
             setState(() {
               messageController.text = val.recognizedWords;
             });
           },
+          localeId: localeId,
+          listenMode: stt.ListenMode.dictation,
+          partialResults: true,
+          cancelOnError: true,
         );
       }
     } else {
@@ -242,19 +246,19 @@ class _ComplainPageState extends State<ComplainPage> {
   }
 
   /// Success Popup
-  void _showSuccessDialog() {
+  void _showSuccessDialog(LocaleProvider localeProvider) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Complaint Submitted"),
-        content: const Text("Thank you! We will get back to you soon."),
+        title: Text(localeProvider.isHindi ? "शिकायत दर्ज की गई" : "Complaint Submitted"),
+        content: Text(localeProvider.isHindi ? "धन्यवाद! हम जल्द ही आपसे संपर्क करेंगे।" : "Thank you! We will get back to you soon."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              "OK",
-              style: TextStyle(color: AppTheme.primaryGreen),
+            child: Text(
+              localeProvider.isHindi ? "ठीक है" : "OK",
+              style: const TextStyle(color: AppTheme.primaryGreen),
             ),
           ),
         ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/storage_service.dart';
 import '../auth/providers/auth_provider.dart';
 import '../auth/screens/login_screen.dart';
 import '../farmer/screens/farmer_dashboard.dart';
@@ -18,6 +19,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -50,12 +52,28 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 
   Future<void> _navigateToNextScreen() async {
+    // Prevent multiple navigation attempts
+    if (_hasNavigated) return;
+    
     // Wait for animation + additional delay
     await Future.delayed(const Duration(milliseconds: 2500));
 
-    if (!mounted) return;
+    if (!mounted || _hasNavigated) return;
+    
+    _hasNavigated = true;
 
     final authProvider = context.read<AuthProvider>();
+    
+    // Check if user was using camera - if so, wait for session restoration
+    final cameraActive = await StorageService.getData('camera_active');
+    if (cameraActive == 'true') {
+      print('DEBUG: Camera was active, waiting for session restoration...');
+      // Wait up to 3 seconds for auth to restore
+      for (int i = 0; i < 30 && !authProvider.isAuthenticated; i++) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      print('DEBUG: Session restoration wait complete, authenticated: ${authProvider.isAuthenticated}');
+    }
     
     // Check if user is already logged in
     if (authProvider.isAuthenticated && authProvider.currentUser != null) {

@@ -43,6 +43,39 @@ class CollectionEvent extends HiveObject {
   @HiveField(12)
   String? blockchainHash;
 
+  @HiveField(13)
+  String? commonName;
+
+  @HiveField(14)
+  String? scientificName;
+
+  @HiveField(15)
+  String? harvestMethod;
+
+  @HiveField(16)
+  String? partCollected;
+
+  @HiveField(17)
+  double? altitude;
+
+  @HiveField(18)
+  double? latitudeAccuracy;
+
+  @HiveField(19)
+  double? longitudeAccuracy;
+
+  @HiveField(20)
+  String? locationName;
+
+  @HiveField(21)
+  String? soilType;
+
+  @HiveField(22)
+  String? notes;
+
+  @HiveField(23)
+  String? weatherCondition;
+
   CollectionEvent({
     required this.id,
     required this.farmerId,
@@ -57,6 +90,17 @@ class CollectionEvent extends HiveObject {
     required this.timestamp,
     this.isSynced = false,
     this.blockchainHash,
+    this.commonName,
+    this.scientificName,
+    this.harvestMethod,
+    this.partCollected,
+    this.altitude,
+    this.latitudeAccuracy,
+    this.longitudeAccuracy,
+    this.locationName,
+    this.soilType,
+    this.notes,
+    this.weatherCondition,
   });
 
   Map<String, dynamic> toJson() {
@@ -74,6 +118,16 @@ class CollectionEvent extends HiveObject {
       'timestamp': timestamp.toIso8601String(),
       'isSynced': isSynced,
       'blockchainHash': blockchainHash,
+      'commonName': commonName,
+      'scientificName': scientificName,
+      'harvestMethod': harvestMethod,
+      'partCollected': partCollected,
+      'altitude': altitude,
+      'latitudeAccuracy': latitudeAccuracy,
+      'longitudeAccuracy': longitudeAccuracy,
+      'locationName': locationName,
+      'soilType': soilType,
+      'notes': notes,
     };
   }
 
@@ -92,6 +146,16 @@ class CollectionEvent extends HiveObject {
       timestamp: DateTime.parse(json['timestamp']),
       isSynced: json['isSynced'] ?? false,
       blockchainHash: json['blockchainHash'],
+      commonName: json['commonName'],
+      scientificName: json['scientificName'],
+      harvestMethod: json['harvestMethod'],
+      partCollected: json['partCollected'],
+      altitude: json['altitude']?.toDouble(),
+      latitudeAccuracy: json['latitudeAccuracy']?.toDouble(),
+      longitudeAccuracy: json['longitudeAccuracy']?.toDouble(),
+      locationName: json['locationName'],
+      soilType: json['soilType'],
+      notes: json['notes'],
     );
   }
 }

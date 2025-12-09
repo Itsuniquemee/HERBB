@@ -100,6 +100,22 @@ class StorageService {
     return box.get(key, defaultValue: defaultValue);
   }
 
+  // Generic data storage
+  static Future<void> saveData(String key, dynamic value) async {
+    final box = Hive.box(settingsBox);
+    await box.put(key, value);
+  }
+
+  static dynamic getData(String key) {
+    final box = Hive.box(settingsBox);
+    return box.get(key);
+  }
+
+  static Future<void> removeData(String key) async {
+    final box = Hive.box(settingsBox);
+    await box.delete(key);
+  }
+
   // Clear all data
   static Future<void> clearAll() async {
     await Hive.box(collectionEventsBox).clear();

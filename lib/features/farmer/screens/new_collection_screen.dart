@@ -15,6 +15,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/locale_provider.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/weather_service.dart';
+import '../../../core/services/storage_service.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/collection_provider.dart';
 
@@ -25,15 +26,22 @@ class NewCollectionScreen extends StatefulWidget {
   State<NewCollectionScreen> createState() => _NewCollectionScreenState();
 }
 
-class _NewCollectionScreenState extends State<NewCollectionScreen> {
+class _NewCollectionScreenState extends State<NewCollectionScreen> 
+    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _speciesController = TextEditingController();
   final _weightController = TextEditingController();
   final _moistureController = TextEditingController();
+  final _commonNameController = TextEditingController();
+  final _scientificNameController = TextEditingController();
+  final _locationNameController = TextEditingController();
+  final _notesController = TextEditingController();
 
   final List<File> _images = [];
   double? _latitude;
   double? _longitude;
+  double? _altitude;
+  double? _accuracy;
   double? _temperature;
   double? _humidity;
   bool _isLoadingLocation = false;
@@ -44,6 +52,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
   bool _isListeningSpecies = false;
   bool _isListeningWeight = false;
   bool _isListeningMoisture = false;
+  bool _isListeningNotes = false;
 
   final List<String> _herbSpecies = [
     'Ashwagandha',
@@ -56,16 +65,65 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
     'Amla',
   ];
 
+  final List<String> _soilTypes = [
+    'Loamy',
+    'Clay',
+    'Sandy',
+    'Silt',
+    'Peaty',
+    'Chalky',
+    'Red Soil',
+    'Black Soil',
+    'Alluvial',
+  ];
+
+  final List<String> _harvestMethods = [
+    'Manual Harvesting',
+    'Mechanical Harvesting',
+    'Semi-Mechanical',
+    'Selective Harvesting',
+  ];
+
+  final List<String> _partCollectedOptions = [
+    'Whole Plant',
+    'Leaves',
+    'Roots',
+    'Flowers',
+    'Seeds',
+    'Bark',
+    'Fruits',
+    'Rhizome',
+    'Stem',
+  ];
+
+  String? _selectedSoilType;
+  String? _selectedHarvestMethod;
+  String? _selectedPartCollected;
+
+  final List<String> _weatherConditions = [
+    'Sunny',
+    'Cloudy',
+    'Partly Cloudy',
+    'Rainy',
+    'Drizzle',
+    'Windy',
+    'Humid',
+  ];
+
+  String? _selectedWeatherCondition;
+
   late Box _offlineQueueBox;
   late Box _cacheBox;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _speech = stt.SpeechToText();
     _initHive();
     _getCurrentLocation();
     _listenConnectivity();
+    _restoreFormState();
   }
 
   Future<void> _initHive() async {
@@ -90,21 +148,130 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
       final loc = _cacheBox.get('location');
       _latitude = loc['latitude'];
       _longitude = loc['longitude'];
+      _altitude = loc['altitude'];
+      _accuracy = loc['accuracy'];
     }
     if (_cacheBox.containsKey('weather')) {
       final weather = _cacheBox.get('weather');
       _temperature = weather['temperature'];
       _humidity = weather['humidity'];
+      _selectedWeatherCondition = weather['condition'];
+      print('DEBUG: Loaded from cache - condition: $_selectedWeatherCondition');
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _speciesController.dispose();
     _weightController.dispose();
     _moistureController.dispose();
     super.dispose();
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Handle app lifecycle changes (e.g., when returning from camera)
+    print('DEBUG: App lifecycle state: $state');
+    if (state == AppLifecycleState.paused) {
+      // App going to background (camera opening) - save everything
+      print('DEBUG: App pausing - saving form state');
+      _saveFormState();
+    } else if (state == AppLifecycleState.resumed) {
+      print('DEBUG: App resumed - restoring form state');
+      _restoreFormState();
+      // Force a rebuild to ensure UI is in sync
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  Future<void> _saveFormState() async {
+    try {
+      final formState = {
+        'species': _speciesController.text,
+        'weight': _weightController.text,
+        'moisture': _moistureController.text,
+        'commonName': _commonNameController.text,
+        'scientificName': _scientificNameController.text,
+        'locationName': _locationNameController.text,
+        'notes': _notesController.text,
+        'selectedSoilType': _selectedSoilType,
+        'selectedHarvestMethod': _selectedHarvestMethod,
+        'selectedPartCollected': _selectedPartCollected,
+        'selectedWeatherCondition': _selectedWeatherCondition,
+        'latitude': _latitude,
+        'longitude': _longitude,
+        'altitude': _altitude,
+        'accuracy': _accuracy,
+        'temperature': _temperature,
+        'humidity': _humidity,
+        'imageCount': _images.length,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+      await _cacheBox.put('temp_form_state', formState);
+      print('DEBUG: Form state saved: ${formState.keys.length} fields');
+    } catch (e) {
+      print('DEBUG: Error saving form state: $e');
+    }
+  }
+
+  Future<void> _restoreFormState() async {
+    try {
+      final formState = _cacheBox.get('temp_form_state');
+      if (formState != null && formState is Map) {
+        // Only restore if saved recently (within last 5 minutes)
+        final timestamp = formState['timestamp'] as int?;
+        if (timestamp != null) {
+          final age = DateTime.now().millisecondsSinceEpoch - timestamp;
+          if (age < 300000) { // 5 minutes
+            print('DEBUG: Restoring form state from ${age}ms ago');
+            setState(() {
+              _speciesController.text = formState['species'] ?? '';
+              _weightController.text = formState['weight'] ?? '';
+              _moistureController.text = formState['moisture'] ?? '';
+              _commonNameController.text = formState['commonName'] ?? '';
+              _scientificNameController.text = formState['scientificName'] ?? '';
+              _locationNameController.text = formState['locationName'] ?? '';
+              _notesController.text = formState['notes'] ?? '';
+              _selectedSoilType = formState['selectedSoilType'];
+              _selectedHarvestMethod = formState['selectedHarvestMethod'];
+              _selectedPartCollected = formState['selectedPartCollected'];
+              _selectedWeatherCondition = formState['selectedWeatherCondition'];
+              _latitude = formState['latitude'];
+              _longitude = formState['longitude'];
+              _altitude = formState['altitude'];
+              _accuracy = formState['accuracy'];
+              _temperature = formState['temperature'];
+              _humidity = formState['humidity'];
+            });
+            
+            // Restore image paths if available
+            final imagePaths = _cacheBox.get('temp_image_paths');
+            if (imagePaths != null && imagePaths is List) {
+              _images.clear();
+              for (var path in imagePaths) {
+                if (path is String && File(path).existsSync()) {
+                  _images.add(File(path));
+                }
+              }
+              print('DEBUG: Restored ${_images.length} images');
+            }
+            
+            print('DEBUG: Form state restored successfully');
+            return;
+          }
+        }
+      }
+      print('DEBUG: No recent form state to restore');
+    } catch (e) {
+      print('DEBUG: Error restoring form state: $e');
+    }
+  }
+
+  @override
+  bool get wantKeepAlive => true;
 
   Future<void> _startListening(TextEditingController controller, String field) async {
     bool available = await _speech.initialize();
@@ -114,7 +281,12 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
       _isListeningSpecies = field == 'species';
       _isListeningWeight = field == 'weight';
       _isListeningMoisture = field == 'moisture';
+      _isListeningNotes = field == 'notes';
     });
+
+    // Get current locale from provider to determine speech language
+    final localeProvider = context.read<LocaleProvider>();
+    String localeId = (field == 'notes' && localeProvider.isHindi) ? 'hi_IN' : 'en_US';
 
     _speech.listen(
       onResult: (stt.SpeechRecognitionResult result) {
@@ -126,6 +298,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
       listenMode: stt.ListenMode.dictation,
       partialResults: true,
       cancelOnError: true,
+      localeId: localeId,
     );
   }
 
@@ -135,6 +308,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
       _isListeningSpecies = false;
       _isListeningWeight = false;
       _isListeningMoisture = false;
+      _isListeningNotes = false;
     });
   }
 
@@ -150,8 +324,15 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
       setState(() {
         _latitude = position.latitude;
         _longitude = position.longitude;
+        _altitude = position.altitude;
+        _accuracy = position.accuracy;
       });
-      _cacheBox.put('location', {'latitude': _latitude, 'longitude': _longitude});
+      _cacheBox.put('location', {
+        'latitude': _latitude,
+        'longitude': _longitude,
+        'altitude': _altitude,
+        'accuracy': _accuracy,
+      });
       await _getWeatherData();
     }
 
@@ -174,14 +355,36 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
         longitude: _longitude!,
       );
 
+      print('DEBUG: Weather data received: $weatherData');
+      
       if (weatherData != null) {
+        final weatherCode = weatherData['weather_code'];
+        final isDay = weatherData['is_day'] == 1;
+        print('DEBUG: Raw weather code: $weatherCode (type: ${weatherCode.runtimeType}), is_day: $isDay');
+        
+        final code = (weatherCode is int) ? weatherCode : (weatherCode is double ? weatherCode.toInt() : 0);
+        print('DEBUG: Converted weather code: $code');
+        
+        final condition = weatherService.getWeatherCondition(code, isDay: isDay);
+        print('DEBUG: Weather condition: $condition');
+        
         setState(() {
-          _temperature = weatherData['temperature'];
-          _humidity = weatherData['humidity'];
+          _temperature = weatherData['temperature'] as double?;
+          _humidity = weatherData['humidity'] as double?;
+          _selectedWeatherCondition = condition;
         });
-        _cacheBox.put('weather', {'temperature': _temperature, 'humidity': _humidity});
+        
+        print('DEBUG: Selected weather condition after setState: $_selectedWeatherCondition');
+        
+        _cacheBox.put('weather', {
+          'temperature': _temperature,
+          'humidity': _humidity,
+          'condition': condition,
+        });
       }
-    } catch (_) {}
+    } catch (e) {
+      print('DEBUG: Error fetching weather: $e');
+    }
 
     setState(() {
       _isLoadingWeather = false;
@@ -191,12 +394,25 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
   Future<void> _captureImage() async {
     try {
       if (_images.length >= 3) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Maximum 3 images allowed')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Maximum 3 images allowed')),
+          );
+        }
         return;
       }
 
+      // Save form state AND user session before opening camera
+      print('DEBUG: Saving form state and session before camera');
+      await _saveFormState();
+      
+      // Save that user is actively using the camera to prevent logout
+      await StorageService.saveData('camera_active', 'true');
+      await StorageService.saveData('camera_timestamp', DateTime.now().millisecondsSinceEpoch.toString());
+      
+      // Store context before async operation
+      final currentContext = context;
+      
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(
         source: ImageSource.camera,
@@ -205,13 +421,46 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
         imageQuality: 70,
       );
 
-      if (pickedFile != null && mounted) {
-        setState(() {
-          _images.add(File(pickedFile.path));
-        });
+      print('DEBUG: Camera returned, pickedFile: ${pickedFile?.path}');
+      
+      // Clear camera active flag
+      await StorageService.removeData('camera_active');
+      await StorageService.removeData('camera_timestamp');
+
+      // Only update state if image was actually picked and widget is still mounted
+      if (pickedFile != null) {
+        // Wait a brief moment for app to fully resume
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        if (mounted) {
+          setState(() {
+            _images.add(File(pickedFile.path));
+          });
+          
+          // Save image path to cache for persistence
+          List<String> imagePaths = _images.map((f) => f.path).toList();
+          await _cacheBox.put('temp_image_paths', imagePaths);
+          print('DEBUG: Saved ${imagePaths.length} image paths');
+          
+          // Show confirmation that image was added
+          if (mounted) {
+            ScaffoldMessenger.of(currentContext).showSnackBar(
+              SnackBar(
+                content: Text('Image ${_images.length} added successfully'),
+                duration: const Duration(seconds: 1),
+              ),
+            );
+          }
+        }
+      } else {
+        print('DEBUG: No image selected (user cancelled)');
       }
+      // If pickedFile is null, user cancelled - do nothing
     } catch (e) {
-      if (mounted) {
+      // Log error but don't show error message if user simply cancelled
+      print('Camera error (might be user cancellation): $e');
+      // Only show error if it's not a user cancellation and widget is mounted
+      if (mounted && !e.toString().toLowerCase().contains('cancel')) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error capturing image: $e')),
         );
@@ -233,7 +482,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
           Uri.parse('https://herbal-trace-production.up.railway.app/api/v1/collections'),
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MTQzMDA0LCJleHAiOjE3NjUyMjk0MDR9.O_shrDHZfmHVj4r5SDU5LMN0vXnHdSia4viUdeA2GXY',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MjM1MDU2LCJleHAiOjE3NjUzMjE0NTZ9.obOcf9rK86hhrf4Xqq_4MvKoM20qKICNI6TXfblsKwU',
           },
           body: jsonEncode(payload),
         );
@@ -251,6 +500,14 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
             moisture: double.tryParse(payload['moisture']?.toString() ?? '0'),
             temperature: payload['temperature'],
             humidity: payload['humidity'],
+            commonName: payload['commonName'],
+            scientificName: payload['scientificName'],
+            harvestMethod: payload['harvestMethod'],
+            partCollected: payload['partCollected'],
+            altitude: payload['altitude'],
+            locationName: payload['locationName'],
+            soilType: payload['soilType'],
+            notes: payload['notes'],
           );
           _offlineQueueBox.delete(key);
         }
@@ -289,13 +546,28 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
       "harvestDate": DateTime.now().toIso8601String().split('T')[0],
       "latitude": _latitude!.toString(),
       "longitude": _longitude!.toString(),
+      "accuracy": _accuracy,
+      "altitude": _altitude,
       "location":
       "Lat: ${_latitude!.toStringAsFixed(6)}, Lon: ${_longitude!.toStringAsFixed(6)}",
       "imagePaths": _images.map((f) => f.path).toList(),
       "temperature": _temperature,
       "humidity": _humidity,
+      "weatherCondition": _selectedWeatherCondition,
       "moisture": double.tryParse(_moistureController.text),
+      "commonName": _commonNameController.text.isNotEmpty ? _commonNameController.text : null,
+      "scientificName": _scientificNameController.text.isNotEmpty ? _scientificNameController.text : null,
+      "harvestMethod": _selectedHarvestMethod,
+      "partCollected": _selectedPartCollected,
+      "locationName": _locationNameController.text.isNotEmpty ? _locationNameController.text : null,
+      "soilType": _selectedSoilType,
+      "notes": _notesController.text.isNotEmpty ? _notesController.text : null,
     };
+
+    print('📤 Submitting collection to Railway backend...');
+    print('📍 GPS: Lat=${_latitude}, Lon=${_longitude}, Accuracy=${_accuracy}m, Alt=${_altitude}m');
+    print('🌡️  Weather: ${_selectedWeatherCondition}, Temp=${_temperature}°C, Humidity=${_humidity}%');
+    print('📦 Payload: ${jsonEncode(payload)}');
 
     try {
       final connectivity = await Connectivity().checkConnectivity();
@@ -310,10 +582,13 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
           Uri.parse('https://herbal-trace-production.up.railway.app/api/v1/collections'),
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MTQzMDA0LCJleHAiOjE3NjUyMjk0MDR9.O_shrDHZfmHVj4r5SDU5LMN0vXnHdSia4viUdeA2GXY',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MjM1MDU2LCJleHAiOjE3NjUzMjE0NTZ9.obOcf9rK86hhrf4Xqq_4MvKoM20qKICNI6TXfblsKwU',
           },
           body: jsonEncode(payload),
         );
+
+        print('✅ Response Status: ${response.statusCode}');
+        print('📄 Response Body: ${response.body}');
 
         final decoded = jsonDecode(response.body);
         if ((response.statusCode == 200 || response.statusCode == 201) &&
@@ -328,13 +603,27 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
             moisture: double.tryParse(_moistureController.text),
             temperature: _temperature,
             humidity: _humidity,
+            weatherCondition: _selectedWeatherCondition,
+            commonName: _commonNameController.text.isNotEmpty ? _commonNameController.text : null,
+            scientificName: _scientificNameController.text.isNotEmpty ? _scientificNameController.text : null,
+            harvestMethod: _selectedHarvestMethod,
+            partCollected: _selectedPartCollected,
+            altitude: _altitude,
+            latitudeAccuracy: _accuracy,
+            longitudeAccuracy: _accuracy,
+            locationName: _locationNameController.text.isNotEmpty ? _locationNameController.text : null,
+            soilType: _selectedSoilType,
+            notes: _notesController.text.isNotEmpty ? _notesController.text : null,
           );
           _showSuccessDialog(decoded['data']?['id'] ?? 'success');
         } else {
+          print('❌ API Error: Status ${response.statusCode}');
+          print('❌ Error Response: ${response.body}');
           throw Exception('API Error: ${response.statusCode}');
         }
       }
     } catch (e) {
+      print('💥 Exception caught: $e');
       await _offlineQueueBox.add(payload);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Submission failed. Saved offline.')),
@@ -395,18 +684,24 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     final localeProvider = context.watch<LocaleProvider>();
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(localeProvider.translate('new_collection')),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+    return WillPopScope(
+      onWillPop: () async {
+        // Allow normal back navigation
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(localeProvider.translate('new_collection')),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               _buildLocationCard(localeProvider),
               const SizedBox(height: 20),
               _buildCameraSection(localeProvider),
@@ -448,12 +743,21 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                   labelText: localeProvider.translate('weight'),
                   prefixIcon: const Icon(Icons.scale),
                   suffixText: 'kg',
-                  suffixIcon: IconButton(
-                    icon: Icon(_isListeningWeight ? Icons.mic : Icons.mic_none),
-                    onPressed: () {
-                      if (_isListeningWeight) _stopListening();
-                      else _startListening(_weightController, 'weight');
-                    },
+                  suffixIcon: Semantics(
+                    label: _isListeningWeight
+                        ? localeProvider.translate('a11y_voice_listening')
+                        : '${localeProvider.translate('a11y_voice_input_for')} ${localeProvider.translate('weight')}',
+                    button: true,
+                    child: IconButton(
+                      icon: Icon(
+                        _isListeningWeight ? Icons.mic : Icons.mic_none,
+                        color: _isListeningWeight ? Colors.red : null,
+                      ),
+                      onPressed: () {
+                        if (_isListeningWeight) _stopListening();
+                        else _startListening(_weightController, 'weight');
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -468,12 +772,156 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                   labelText: localeProvider.translate('moisture'),
                   prefixIcon: const Icon(Icons.water_drop),
                   suffixText: '%',
-                  suffixIcon: IconButton(
-                    icon: Icon(_isListeningMoisture ? Icons.mic : Icons.mic_none),
-                    onPressed: () {
-                      if (_isListeningMoisture) _stopListening();
-                      else _startListening(_moistureController, 'moisture');
-                    },
+                  suffixIcon: Semantics(
+                    label: _isListeningMoisture
+                        ? localeProvider.translate('a11y_voice_listening')
+                        : '${localeProvider.translate('a11y_voice_input_for')} ${localeProvider.translate('moisture')}',
+                    button: true,
+                    child: IconButton(
+                      icon: Icon(
+                        _isListeningMoisture ? Icons.mic : Icons.mic_none,
+                        color: _isListeningMoisture ? Colors.red : null,
+                      ),
+                      onPressed: () {
+                        if (_isListeningMoisture) _stopListening();
+                        else _startListening(_moistureController, 'moisture');
+                      },
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Common Name
+              TextFormField(
+                controller: _commonNameController,
+                decoration: InputDecoration(
+                  labelText: localeProvider.isHindi ? 'सामान्य नाम' : 'Common Name',
+                  prefixIcon: const Icon(Icons.grass),
+                  hintText: localeProvider.isHindi ? 'उदा., अश्वगंधा' : 'e.g., Indian Ginseng',
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Scientific Name
+              TextFormField(
+                controller: _scientificNameController,
+                decoration: InputDecoration(
+                  labelText: localeProvider.isHindi ? 'वैज्ञानिक नाम' : 'Scientific Name',
+                  prefixIcon: const Icon(Icons.science),
+                  hintText: 'e.g., Withania somnifera',
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Harvest Method
+              DropdownButtonFormField<String>(
+                value: _selectedHarvestMethod,
+                decoration: InputDecoration(
+                  labelText: localeProvider.isHindi ? 'कटाई विधि' : 'Harvest Method',
+                  prefixIcon: const Icon(Icons.cut),
+                ),
+                hint: Text(localeProvider.isHindi ? 'कटाई विधि चुनें' : 'Select Harvest Method'),
+                items: _harvestMethods.map((method) {
+                  return DropdownMenuItem<String>(
+                    value: method,
+                    child: Text(method),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedHarvestMethod = value;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Part Collected
+              DropdownButtonFormField<String>(
+                value: _selectedPartCollected,
+                decoration: InputDecoration(
+                  labelText: localeProvider.isHindi ? 'संग्रहित भाग' : 'Part Collected',
+                  prefixIcon: const Icon(Icons.inventory_2),
+                ),
+                hint: Text(localeProvider.isHindi ? 'संग्रहित भाग चुनें' : 'Select Part Collected'),
+                items: _partCollectedOptions.map((part) {
+                  return DropdownMenuItem<String>(
+                    value: part,
+                    child: Text(part),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedPartCollected = value;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Location Name
+              TextFormField(
+                controller: _locationNameController,
+                decoration: InputDecoration(
+                  labelText: localeProvider.isHindi ? 'स्थान का नाम' : 'Location Name',
+                  prefixIcon: const Icon(Icons.location_city),
+                  hintText: localeProvider.isHindi ? 'उदा., गांव का नाम, फार्म का नाम' : 'e.g., Village name, Farm name',
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Soil Type
+              DropdownButtonFormField<String>(
+                value: _selectedSoilType,
+                decoration: InputDecoration(
+                  labelText: localeProvider.isHindi ? 'मिट्टी प्रकार' : 'Soil Type',
+                  prefixIcon: const Icon(Icons.landscape),
+                ),
+                hint: Text(localeProvider.isHindi ? 'मिट्टी प्रकार चुनें' : 'Select Soil Type'),
+                items: _soilTypes.map((soil) {
+                  return DropdownMenuItem<String>(
+                    value: soil,
+                    child: Text(soil),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedSoilType = value;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Notes
+              TextFormField(
+                controller: _notesController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: localeProvider.isHindi ? 'टिप्पणियां' : 'Notes',
+                  prefixIcon: const Icon(Icons.note),
+                  hintText: localeProvider.isHindi ? 'अतिरिक्त टिप्पणियां या टिप्पणी' : 'Additional observations or remarks',
+                  alignLabelWithHint: true,
+                  suffixIcon: Semantics(
+                    label: _isListeningNotes
+                        ? localeProvider.translate('a11y_voice_listening')
+                        : '${localeProvider.translate('a11y_voice_input_for')} ${localeProvider.isHindi ? "टिप्पणियां" : "Notes"}',
+                    button: true,
+                    child: IconButton(
+                      icon: Icon(
+                        _isListeningNotes ? Icons.mic : Icons.mic_none,
+                        color: _isListeningNotes ? Colors.red : null,
+                      ),
+                      onPressed: () {
+                        if (_isListeningNotes) _stopListening();
+                        else _startListening(_notesController, 'notes');
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -508,6 +956,17 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else
+                          Semantics(
+                            label: localeProvider.translate('a11y_refresh_weather'),
+                            button: true,
+                            child: IconButton(
+                              icon: const Icon(Icons.refresh, size: 20),
+                              onPressed: _getWeatherData,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
                           ),
                       ],
                     ),
@@ -515,12 +974,29 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                     if (_temperature != null && _humidity != null) ...[
                       Row(
                         children: [
+                          Icon(
+                            _getWeatherIcon(_selectedWeatherCondition ?? 'Sunny'),
+                            size: 20,
+                            color: AppTheme.primaryGreen,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            localeProvider.isHindi
+                                ? 'मौसम स्थिति : ${_selectedWeatherCondition ?? "अज्ञात"}'
+                                : 'Weather Condition : ${_selectedWeatherCondition ?? "Unknown"}',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
                           const Icon(Icons.thermostat, size: 20, color: Colors.orange),
                           const SizedBox(width: 8),
                           Text(
                             localeProvider.isHindi
-                                ? 'तापमान: ${_temperature!.toStringAsFixed(1)}°C'
-                                : 'Temperature: ${_temperature!.toStringAsFixed(1)}°C',
+                                ? 'तापमान : ${_temperature!.toStringAsFixed(1)}°C'
+                                : 'Temperature : ${_temperature!.toStringAsFixed(1)}°C',
                             style: const TextStyle(fontSize: 14),
                           ),
                         ],
@@ -532,8 +1008,8 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                           const SizedBox(width: 8),
                           Text(
                             localeProvider.isHindi
-                                ? 'आर्द्रता: ${_humidity!.toStringAsFixed(0)}%'
-                                : 'Humidity: ${_humidity!.toStringAsFixed(0)}%',
+                                ? 'आर्द्रता : ${_humidity!.toStringAsFixed(0)}%'
+                                : 'Humidity : ${_humidity!.toStringAsFixed(0)}%',
                             style: const TextStyle(fontSize: 14),
                           ),
                         ],
@@ -575,7 +1051,37 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
           ),
         ),
       ),
+      ),
     );
+  }
+
+  IconData _getWeatherIcon(String condition) {
+    switch (condition) {
+      case 'Sunny':
+        return Icons.wb_sunny;
+      case 'Clear Night':
+        return Icons.nightlight_round;
+      case 'Cloudy':
+        return Icons.cloud;
+      case 'Partly Cloudy':
+        return Icons.wb_cloudy;
+      case 'Rainy':
+        return Icons.umbrella;
+      case 'Drizzle':
+        return Icons.grain;
+      case 'Foggy':
+        return Icons.foggy;
+      case 'Snowy':
+        return Icons.ac_unit;
+      case 'Stormy':
+        return Icons.thunderstorm;
+      case 'Windy':
+        return Icons.air;
+      case 'Humid':
+        return Icons.water_drop;
+      default:
+        return Icons.wb_cloudy;
+    }
   }
 
 // Copy your original _buildLocationCard() and _buildCameraSection() functions here
@@ -599,7 +1105,11 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                 if (_isLoadingLocation)
                   const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 else
-                  IconButton(icon: const Icon(Icons.refresh), onPressed: _getCurrentLocation),
+                  Semantics(
+                    label: localeProvider.translate('a11y_refresh_location'),
+                    button: true,
+                    child: IconButton(icon: const Icon(Icons.refresh), onPressed: _getCurrentLocation),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -623,15 +1133,45 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                             style: const TextStyle(
                                 fontWeight: FontWeight.w500, color: AppTheme.success),
                           ),
-                          Text(
-                            '${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}',
-                            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.my_location, size: 14, color: AppTheme.textSecondary),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  '${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}',
+                                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                                ),
+                              ),
+                            ],
                           ),
-                          // if (_cacheBox.containsKey('location'))
-                          //   Text(
-                          //     '(Using cached location)',
-                          //     style: const TextStyle(fontSize: 10, color: Colors.grey),
-                          //   ),
+                          if (_altitude != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.terrain, size: 14, color: AppTheme.textSecondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Altitude: ${_altitude!.toStringAsFixed(1)} m',
+                                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (_accuracy != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.gps_fixed, size: 14, color: AppTheme.textSecondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Accuracy: ${_accuracy!.toStringAsFixed(1)} m',
+                                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -705,16 +1245,20 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
                         Positioned(
                           top: 0,
                           right: 0,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _images.removeAt(index);
-                              });
-                            },
-                            child: const CircleAvatar(
-                              radius: 12,
-                              backgroundColor: Colors.red,
-                              child: Icon(Icons.close, size: 16, color: Colors.white),
+                          child: Semantics(
+                            label: '${localeProvider.translate('a11y_delete_image')} ${index + 1}',
+                            button: true,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _images.removeAt(index);
+                                });
+                              },
+                              child: const CircleAvatar(
+                                radius: 12,
+                                backgroundColor: Colors.red,
+                                child: Icon(Icons.close, size: 16, color: Colors.white),
+                              ),
                             ),
                           ),
                         )
