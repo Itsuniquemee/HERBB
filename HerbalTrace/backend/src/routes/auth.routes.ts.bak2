@@ -165,7 +165,7 @@ router.post('/registration-requests/:id/approve', authenticate, authorize('Admin
     }
 
     // Get registration request
-    const request: any = await db.prepare('SELECT * FROM registration_requests WHERE id = ?').get(id);
+    const request: any = db.prepare('SELECT * FROM registration_requests WHERE id = ?').get(id);
 
     if (!request) {
       return res.status(404).json({
@@ -283,7 +283,7 @@ router.post('/registration-requests/:id/reject', authenticate, authorize('Admin'
     }
 
     // Get registration request
-    const request: any = await db.prepare('SELECT * FROM registration_requests WHERE id = ?').get(id);
+    const request: any = db.prepare('SELECT * FROM registration_requests WHERE id = ?').get(id);
 
     if (!request) {
       return res.status(404).json({
@@ -343,7 +343,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     // Get user (by username or email)
-    const user: any = await db.prepare(
+    const user: any = db.prepare(
       'SELECT * FROM users WHERE (username = ? OR email = ?) AND status = ?'
     ).get(username, username, 'active');
 
@@ -428,7 +428,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     const decoded: any = jwt.verify(refreshToken, JWT_SECRET);
 
     // Get user
-    const user: any = await db.prepare('SELECT * FROM users WHERE user_id = ? AND status = ?').get(decoded.userId, 'active');
+    const user: any = db.prepare('SELECT * FROM users WHERE user_id = ? AND status = ?').get(decoded.userId, 'active');
 
     if (!user) {
       return res.status(401).json({
@@ -471,7 +471,7 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
 
-    const user: any = await db.prepare('SELECT * FROM users WHERE user_id = ?').get(userId);
+    const user: any = db.prepare('SELECT * FROM users WHERE user_id = ?').get(userId);
 
     if (!user) {
       return res.status(404).json({
@@ -530,7 +530,7 @@ router.post('/change-password', authenticate, async (req: Request, res: Response
     }
 
     // Get user
-    const user: any = await db.prepare('SELECT * FROM users WHERE user_id = ?').get(userId);
+    const user: any = db.prepare('SELECT * FROM users WHERE user_id = ?').get(userId);
 
     if (!user) {
       return res.status(404).json({
@@ -583,7 +583,7 @@ router.delete('/registration-requests/:id', authenticate, authorize('Admin'), as
     const adminUserId = (req as any).user.userId;
 
     // Get registration request
-    const request: any = await db.prepare('SELECT * FROM registration_requests WHERE id = ?').get(id);
+    const request: any = db.prepare('SELECT * FROM registration_requests WHERE id = ?').get(id);
 
     if (!request) {
       return res.status(404).json({

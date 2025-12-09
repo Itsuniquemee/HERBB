@@ -3,7 +3,7 @@ import { getFabricClient } from '../fabric/fabricClient';
 import { authenticate } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger';
-import { db } from '../config/database-adapter';
+import { db } from '../config/database';
 import validationService from '../services/ValidationService';
 import imageUploadService from '../services/ImageUploadService';
 
@@ -51,7 +51,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(Number(limit), Number(offset));
 
-    const collections = await db.prepare(query).allAsync(...params);
+    const collections = await db.prepare(query).all(...params);
 
     // Parse JSON data
     const parsedCollections = collections.map((row: any) => ({
@@ -387,7 +387,7 @@ router.get('/farmer/:farmerId', authenticate, async (req: Request, res: Response
       });
     }
 
-    const collections = db.prepare(`
+    const collections = await db.prepare(`
       SELECT * FROM collection_events_cache
       WHERE farmer_id = ?
       ORDER BY created_at DESC
@@ -433,7 +433,7 @@ router.get('/species/:species', authenticate, async (req: Request, res: Response
 
     query += ' ORDER BY created_at DESC';
 
-    const collections = db.prepare(query).all(...params);
+    const collections = await db.prepare(query).all(...params);
 
     const parsedCollections = collections.map((row: any) => ({
       ...JSON.parse(row.data_json),

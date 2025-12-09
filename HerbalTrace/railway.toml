@@ -1,0 +1,16 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "npm start"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[[services]]
+name = "backend"
+buildCommand = "cd backend && npm install && npm run build"
+startCommand = "cd backend && npm start"
+
+[env]
+NODE_ENV = "production"
+PORT = "3000"

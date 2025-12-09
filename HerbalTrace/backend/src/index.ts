@@ -10,7 +10,7 @@ import path from 'path';
 dotenv.config();
 
 // Import database
-import { testConnection } from './config/database';
+import { testConnection } from './config/database-adapter';
 // import { connectRedis } from './config/redis'; // Disabled for hackathon
 import { logger } from './utils/logger';
 
@@ -159,7 +159,7 @@ const startServer = async () => {
   try {
     // Initialize database schema
     logger.info('Initializing database schema...');
-    const { initializeDatabase } = await import('./config/database');
+    const { initializeDatabase } = await import('./config/database-adapter');
     await initializeDatabase();
     
     // Test database connection
