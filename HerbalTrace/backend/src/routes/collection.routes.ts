@@ -123,11 +123,11 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
     const farmerName = user.fullName;
 
     // Get farmer's location data for zoneName/region
-    const farmerData: any = db.prepare(`
+    const farmerData: any = await db.prepare(`
       SELECT location_district, location_state 
       FROM users 
       WHERE user_id = ?
-    `).get(farmerId);
+    `).getAsync(farmerId);
 
     const zoneName = farmerData?.location_district && farmerData?.location_state
       ? `${farmerData.location_district}, ${farmerData.location_state}`
@@ -168,11 +168,11 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
       logger.warn(`Collection validation failed for farmer ${farmerId}:`, validationResult.violations);
       
       // Create alert for violations
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO alerts (
           alert_type, severity, entity_type, entity_id, title, message, details
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
+      `).runAsync(
         'SEASONAL_WINDOW_VIOLATION', // Or determine type from violations
         'HIGH',
         'collection',
@@ -231,12 +231,12 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
     };
 
     // Store in local database cache
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO collection_events_cache (
         id, farmer_id, farmer_name, species, quantity, unit,
         latitude, longitude, altitude, harvest_date, data_json, sync_status
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `).runAsync(
       collectionId,
       farmerId,
       farmerName,
@@ -265,22 +265,22 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
       blockchainTxId = result?.transactionId || `tx-${Date.now()}`;
       
       // Update sync status
-      db.prepare(`
+      await db.prepare(`
         UPDATE collection_events_cache
-        SET sync_status = ?, blockchain_tx_id = ?, synced_at = datetime('now')
+        SET sync_status = ?, blockchain_tx_id = ?, synced_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run('synced', blockchainTxId, collectionId);
+      `).runAsync('synced', blockchainTxId, collectionId);
       
       await fabricClient.disconnect();
       logger.info(`Collection synced to blockchain: ${collectionId}, TX: ${blockchainTxId}`);
     } catch (blockchainError: any) {
       logger.error(`Blockchain sync failed for ${collectionId}:`, blockchainError);
       // Store error but don't fail the request
-      db.prepare(`
+      await db.prepare(`
         UPDATE collection_events_cache
         SET sync_status = ?, error_message = ?
         WHERE id = ?
-      `).run('failed', blockchainError.message, collectionId);
+      `).runAsync('failed', blockchainError.message, collectionId);
     }
 
     res.status(201).json({
@@ -309,9 +309,9 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
     const user = (req as any).user;
 
     // Try local database first
-    const cached = db.prepare(`
+    const cached: any = await db.prepare(`
       SELECT * FROM collection_events_cache WHERE id = ?
-    `).get(id) as any;
+    `).getAsync(id);
 
     if (cached) {
       const collectionData = JSON.parse(cached.data_json);
@@ -542,11 +542,11 @@ router.post('/sync/retry', authenticate, async (req: Request, res: Response, nex
         const result = await fabricClient.createCollectionEvent(collectionData);
         const txId = result?.transactionId || `tx-${Date.now()}`;
         
-        db.prepare(`
+        await db.prepare(`
           UPDATE collection_events_cache
-          SET sync_status = ?, blockchain_tx_id = ?, synced_at = datetime('now'), error_message = NULL
+          SET sync_status = ?, blockchain_tx_id = ?, synced_at = CURRENT_TIMESTAMP, error_message = NULL
           WHERE id = ?
-        `).run('synced', txId, (row as any).id);
+        `).runAsync('synced', txId, row.id);
         
         await fabricClient.disconnect();
         
