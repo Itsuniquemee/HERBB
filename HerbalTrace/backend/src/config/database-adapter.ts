@@ -311,15 +311,33 @@ export const initializeDatabase = async (): Promise<void> => {
     // Alerts
     await client.query(`
       CREATE TABLE IF NOT EXISTS alerts (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'critical')),
+        id SERIAL PRIMARY KEY,
+        alert_type TEXT NOT NULL CHECK (alert_type IN (
+          'GEO_FENCE_VIOLATION',
+          'HARVEST_LIMIT_EXCEEDED',
+          'SEASONAL_WINDOW_VIOLATION',
+          'QUALITY_TEST_FAILED',
+          'PROCESSING_ALERT',
+          'EXPIRED_BATCH',
+          'RECALL_NOTICE',
+          'SYSTEM_ALERT',
+          'BATCH_ASSIGNED',
+          'BATCH_STATUS_UPDATED'
+        )),
+        severity TEXT DEFAULT 'MEDIUM' CHECK (severity IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL', 'INFO')),
+        entity_type TEXT NOT NULL CHECK (entity_type IN ('collection', 'batch', 'test', 'product', 'user', 'system')),
+        entity_id TEXT NOT NULL,
         title TEXT NOT NULL,
         message TEXT NOT NULL,
-        data_json TEXT,
-        read BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        details TEXT,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'acknowledged', 'resolved', 'dismissed')),
+        triggered_by TEXT,
+        acknowledged_by TEXT,
+        acknowledged_at TIMESTAMP,
+        resolved_by TEXT,
+        resolved_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 

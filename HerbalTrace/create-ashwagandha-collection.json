@@ -1,0 +1,20 @@
+{
+  "species": "Ashwagandha",
+  "commonName": "Indian Ginseng",
+  "scientificName": "Withania somnifera",
+  "quantity": 5,
+  "unit": "kg",
+  "latitude": 30.3165,
+  "longitude": 78.0322,
+  "altitude": 450,
+  "accuracy": 10,
+  "harvestDate": "2025-12-09",
+  "harvestMethod": "Manual Harvesting",
+  "partCollected": "Roots",
+  "weatherConditions": "Sunny, 22°C, Low Humidity",
+  "soilType": "Sandy Loam",
+  "moistureContent": "55%",
+  "conservationStatus": "Least Concern",
+  "certificationIds": ["ORG-CERT-2025"],
+  "images": []
+}
