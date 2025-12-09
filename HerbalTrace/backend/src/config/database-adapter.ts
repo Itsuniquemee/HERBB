@@ -423,6 +423,28 @@ export const initializeDatabase = async (): Promise<void> => {
       CREATE INDEX IF NOT EXISTS idx_complaints_created ON farmer_complaints(created_at DESC);
     `);
 
+    // Simplified Complaints Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS complaints (
+        complaint_id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        user_name VARCHAR(255) NOT NULL,
+        user_email VARCHAR(255) NOT NULL,
+        complaint_type VARCHAR(100) NOT NULL,
+        subject VARCHAR(500) NOT NULL,
+        description TEXT NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP NULL,
+        admin_response TEXT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_complaints_user ON complaints(user_id);
+      CREATE INDEX IF NOT EXISTS idx_complaints_status_simple ON complaints(status);
+      CREATE INDEX IF NOT EXISTS idx_complaints_type_simple ON complaints(complaint_type);
+    `);
+
     await client.query('COMMIT');
     logger.info('✅ PostgreSQL database schema initialized successfully');
   } catch (error) {
