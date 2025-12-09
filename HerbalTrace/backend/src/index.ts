@@ -31,6 +31,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import healthRoutes from './routes/health.routes';
 import blockchainRoutes from './routes/blockchain.routes';
 import herbSpeciesRoutes from './routes/herb-species.routes';
+import complaintsRoutes from './routes/complaints.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
@@ -96,7 +97,8 @@ app.get('/', (_req: Request, res: Response) => {
       harvestLimits: `/${API_PREFIX}/harvest-limits`,
       alerts: `/${API_PREFIX}/alerts`,
       analytics: `/${API_PREFIX}/analytics`,
-      herbSpecies: `/${API_PREFIX}/herbs`
+      herbSpecies: `/${API_PREFIX}/herbs`,
+      complaints: `/${API_PREFIX}/complaints`
     }
   });
 });
@@ -129,6 +131,7 @@ app.use(`/${API_PREFIX}/analytics`, analyticsRoutes);
 app.use(`/${API_PREFIX}/health`, healthRoutes);
 app.use(`/${API_PREFIX}/blockchain`, blockchainRoutes);
 app.use(`/${API_PREFIX}/herbs`, herbSpeciesRoutes);
+app.use(`/${API_PREFIX}/complaints`, complaintsRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
