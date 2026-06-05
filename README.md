@@ -1,240 +1,68 @@
-# HerbalTrace - Blockchain-Based Botanical Traceability App
+# HERBB
 
-A modern, elegant Flutter application for tracing Ayurvedic herbs from farm to consumer using blockchain technology.
+HERBB is a Flutter mobile app focused on herbal traceability and user-friendly workflows for collection, verification, and consumer transparency. The project demonstrates practical mobile engineering with clean UI patterns, offline-aware behavior, and modular Dart architecture.
 
-![Flutter](https://img.shields.io/badge/Flutter-3.0+-02569B?logo=flutter)
-![Dart](https://img.shields.io/badge/Dart-3.0+-0175C2?logo=dart)
-![License](https://img.shields.io/badge/License-MIT-green)
+## Project Overview
 
-## 🌿 Features
+This app helps track herb-related lifecycle information from source to end-user experience, with role-specific flows for contributors and consumers.
 
-### For Farmers / Wild Collectors (Role A)
+## Tech Stack
 
-- **Collection Event Creation**
-  - Automatic GPS location capture
-  - Multi-image capture (up to 3 images)
-  - Species selection from curated list
-  - Quality attributes (weight, moisture, grade)
-  - Offline submission storage with sync queue
-  - Acknowledgement screen with event ID
+- Dart
+- Flutter
+- Provider (state management)
+- Hive (local storage)
+- Geolocator and Google Maps integrations
 
-- **Dashboard**
-  - Daily submission summary
-  - Payment status tracking
-  - Sustainability score display
-  - Reward points system
-  - Batch status monitoring
-  - Sync status badges (synced/pending)
+## Core Features
 
-- **Profile & Training**
-  - Document management
-  - Training video library
-  - Account settings
+- Role-based app experience for different user journeys
+- QR scan and traceability-friendly consumer workflows
+- Location-aware event capture
+- Offline-first local persistence and sync-ready approach
+- Multilingual support and polished modern UI
 
-### For Consumers (Role B)
-
-- **QR Code Scanner**
-  - Fast, reliable scanning
-  - Offline capability (cached data)
-  - Real-time feedback
-
-- **Provenance Viewer**
-  - Geo-tagged harvest map
-  - Complete chain of custody timeline
-  - Processing events history
-  - Quality test results
-  - Sustainability certification
-  - Blockchain verification
-
-- **Rewards Dashboard**
-  - Points for each scan
-  - Scan history
-  - Engagement tracking
-
-## 🎨 Design Philosophy
-
-HerbalTrace features a **nature-inspired design** with:
-
-- **Muted earth tones** - Calming color palette inspired by herbs and nature
-- **Soft card shadows** - Gentle depth and hierarchy
-- **Rounded geometry** - Friendly, approachable interface
-- **Smooth animations** - Fluid transitions between screens
-- **Readable typography** - Clear Poppins font family
-
-### Color Palette
-
-```dart
-Primary Green: #6B9080
-Secondary Brown: #A4AC86
-Accent Sage: #87A878
-Warm Beige: #F2E8CF
-Earth Brown: #BC8B62
-```
-
-## 📱 Screenshots
-
-_(Add screenshots here after running the app)_
-
-## 🚀 Getting Started
+## How To Run
 
 ### Prerequisites
 
-- Flutter SDK 3.0 or higher
-- Dart 3.0 or higher
-- Android Studio / VS Code
-- Android SDK / iOS SDK
+- Flutter SDK (3.x recommended)
+- Dart SDK (bundled with Flutter)
+- Android Studio or VS Code with Flutter extension
+- Android Emulator, iOS Simulator, or physical device
 
-### Installation
+### Setup
 
-1. **Clone the repository**
+1. Clone repository:
    ```bash
-   git clone https://github.com/yourusername/herbal-trace.git
-   cd herbal-trace
+   git clone https://github.com/Itsuniquemee/HERBB.git
+   cd HERBB
    ```
 
-2. **Install dependencies**
+2. Install dependencies:
    ```bash
    flutter pub get
    ```
 
-3. **Generate code (for Hive adapters)**
+3. Optional code generation (if needed by your setup):
    ```bash
    flutter pub run build_runner build
    ```
 
-4. **Run the app**
+4. Run the app:
    ```bash
    flutter run
    ```
 
-### Configuration
+## Repository Structure
 
-Edit `lib/core/services/sync_service.dart` to set your API base URL:
-
-```dart
-static const String apiBaseUrl = 'https://your-api-url.com';
-```
-
-## 📦 Offline-First Architecture
-
-HerbalTrace is built with **offline-first** principles:
-
-### For Farmers
-- All collection events stored locally using Hive
-- Automatic sync queue management
-- Background sync when connectivity returns
-- Visual sync status indicators
-- No data loss even without internet
-
-### For Consumers
-- QR scans work offline
-- Provenance data cached for 24 hours
-- Scan rewards queued for later sync
-- Graceful degradation of features
-
-## 🗂️ Project Structure
-
-```
+```text
 lib/
-├── core/
-│   ├── models/          # Data models
-│   ├── providers/       # State management
-│   ├── routes/          # Navigation
-│   ├── services/        # Business logic
-│   └── theme/           # App theming
-├── features/
-│   ├── auth/            # Authentication
-│   ├── farmer/          # Farmer features
-│   │   ├── providers/
-│   │   ├── screens/
-│   │   └── widgets/
-│   └── consumer/        # Consumer features
-│       ├── providers/
-│       ├── screens/
-│       └── widgets/
-└── main.dart
+  core/
+  features/
+  main.dart
 ```
 
-## 🌍 Internationalization
+## License
 
-Supports:
-- 🇬🇧 English
-- 🇮🇳 Hindi (हिंदी)
-
-Toggle language from any screen using the language icon.
-
-## 🎯 Key Technologies
-
-- **Flutter** - Cross-platform UI framework
-- **Provider** - State management
-- **Hive** - Local database for offline storage
-- **Geolocator** - GPS location services
-- **Google Maps** - Map visualization
-- **QR Code Scanner** - QR scanning functionality
-- **Connectivity Plus** - Network status monitoring
-
-## 🔐 Permissions
-
-### Android (`android/app/src/main/AndroidManifest.xml`)
-
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-<uses-permission android:name="android.permission.CAMERA"/>
-```
-
-### iOS (`ios/Runner/Info.plist`)
-
-```xml
-<key>NSCameraUsageDescription</key>
-<string>We need camera access to capture herb images</string>
-<key>NSLocationWhenInUseUsageDescription</key>
-<string>We need location to record harvest GPS coordinates</string>
-```
-
-## 🧪 Testing
-
-Run tests with:
-```bash
-flutter test
-```
-
-## 🏗️ Building for Production
-
-### Android
-```bash
-flutter build apk --release
-```
-
-### iOS
-```bash
-flutter build ios --release
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 👥 Authors
-
-- Your Name - KUNAL KUMAR DUBEY
-- 
-
-## 🙏 Acknowledgments
-
-- Inspired by sustainable agriculture practices
-- Built for Ayurvedic herb traceability
-- Designed with love for nature 🌿
-
-## 📞 Support
-
-For support, email support@herbaltrace.com or create an issue in this repository.
-
----
-
-**Made with ❤️ and Flutter**
+This project is available under the MIT License.
