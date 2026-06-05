@@ -22,7 +22,8 @@ class AppTheme {
   static const Color error = Color(0xFFEB5757);
   static const Color info = Color(0xFF56CCF2);
 
-  static ThemeData lightTheme = ThemeData(
+  // Light mode theme used across the app.
+  static final ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     primaryColor: primaryGreen,
@@ -116,7 +117,8 @@ class AppTheme {
     ),
   );
 
-  static ThemeData darkTheme = ThemeData(
+  // Dark mode theme used across the app.
+  static final ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     primaryColor: primaryGreen,
