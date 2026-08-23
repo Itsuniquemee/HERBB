@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { db } from '../config/database-adapter';
 
 const router = Router();
 
@@ -80,19 +81,60 @@ router.get('/blockchain', async (req: Request, res: Response) => {
  */
 router.get('/database', async (req: Request, res: Response) => {
   try {
-    // TODO: Implement database health check
-    // - Try to connect to PostgreSQL
-    // - Execute a simple query (SELECT 1)
-    // - Measure response time
+    const startedAt = Date.now();
+
+    const connectionResult = await db.query(
+      `
+      SELECT
+        current_database() AS database,
+        COALESCE(inet_server_addr()::text, 'unknown') AS host,
+        inet_server_port() AS port
+      `
+    );
+
+    const expectedTables = [
+      'users',
+      'collection_events_cache',
+      'quality_tests_cache',
+      'processing_batches_cache',
+      'products_cache',
+      'qr_codes'
+    ];
+
+    const tables: Array<{ name: string; exists: boolean; count: number | null }> = [];
+
+    for (const tableName of expectedTables) {
+      const existsResult = await db.query(
+        'SELECT to_regclass($1) IS NOT NULL AS exists',
+        [`public.${tableName}`]
+      );
+
+      const exists = Boolean(existsResult.rows?.[0]?.exists);
+      let count: number | null = null;
+
+      if (exists) {
+        // Safe because tableName comes from a hardcoded allowlist above.
+        const countResult = await db.query(`SELECT COUNT(*)::int AS count FROM ${tableName}`);
+        count = Number(countResult.rows?.[0]?.count ?? 0);
+      }
+
+      tables.push({ name: tableName, exists, count });
+    }
+
+    const missingTables = tables.filter((table) => !table.exists).map((table) => table.name);
+    const responseTime = Date.now() - startedAt;
+    const conn = connectionResult.rows?.[0] || {};
 
     const health = {
-      status: 'healthy',
+      status: missingTables.length === 0 ? 'healthy' : 'degraded',
       connected: true,
-      host: process.env.DATABASE_HOST || 'localhost',
-      port: process.env.DATABASE_PORT || 5432,
-      database: process.env.DATABASE_NAME || 'herbaltrace',
-      responseTime: 0,
-      lastChecked: new Date().toISOString()
+      host: conn.host || 'unknown',
+      port: conn.port || Number(process.env.DATABASE_PORT || 5432),
+      database: conn.database || process.env.DATABASE_NAME || 'unknown',
+      responseTime,
+      lastChecked: new Date().toISOString(),
+      missingTables,
+      tables
     };
 
     res.status(200).json({

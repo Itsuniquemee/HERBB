@@ -6,7 +6,10 @@ import 'storage_service.dart';
 
 class BackendAuthService {
   static const String defaultApiBaseUrl =
-  'https://herbb-production.up.railway.app';
+      String.fromEnvironment(
+        'API_BASE_URL',
+        defaultValue: 'https://herbb-production.up.railway.app',
+      );
   static const String _legacyApiBaseUrl =
       'https://herbal-trace-production.up.railway.app';
   static const String _defaultUsername = 'admin';

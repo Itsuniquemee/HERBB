@@ -165,6 +165,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // Initialize database and Redis before starting server
 const startServer = async () => {
   let server: any = null;
+  const requireDatabase = process.env.NODE_ENV === 'production' || process.env.REQUIRE_DATABASE === 'true';
   
   try {
     // Initialize legacy SQLite database for routes still using config/database.
@@ -187,6 +188,10 @@ const startServer = async () => {
     // Initialize database schema, but do not fail the whole app if the database is unavailable.
     let dbConnected = false;
     try {
+      if (!process.env.DATABASE_URL) {
+        throw new Error('DATABASE_URL is not set');
+      }
+
       logger.info('Initializing database schema...');
       const { initializeDatabase } = await import('./config/database-adapter');
       await initializeDatabase();
@@ -200,6 +205,9 @@ const startServer = async () => {
         logger.warn('⚠️  Database connection failed - continuing without database (some features may be limited)');
       }
     } catch (error: any) {
+      if (requireDatabase) {
+        throw error;
+      }
       logger.warn(`⚠️  Database initialization failed: ${error.message}`);
       logger.warn('⚠️  Continuing without database (some features may be limited)');
     }
